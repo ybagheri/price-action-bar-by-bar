@@ -1,5 +1,7 @@
 # Price Action Bar-by-Bar
 
+[فارسی](README_FA.md) | English
+
 An explainable MetaTrader 5 indicator that formalizes selected Price Action and Al Brooks-style concepts. It is decision support for reading charts, not an autonomous trading system.
 
 ## What it does
