@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal
 
 from .events import PriceBar, SetupEvent
@@ -9,7 +10,7 @@ Outcome = Literal["target", "invalidation", "expired", "ambiguous", "no_trade"]
 @dataclass(frozen=True)
 class OutcomeResult:
     outcome: Outcome
-    exit_time: object | None
+    exit_time: datetime | None
     bars_to_exit: int | None
     mfe: float
     mae: float

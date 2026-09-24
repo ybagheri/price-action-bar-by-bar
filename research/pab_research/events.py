@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
-Direction = Literal["long", "short"]
+Direction = Literal["long", "short", "none"]
 
 
 @dataclass(frozen=True)
@@ -31,8 +31,14 @@ class SetupEvent:
 
     def __post_init__(self) -> None:
         validate_event_timing(self)
-        if self.direction not in ("long", "short"):
-            raise ValueError("direction must be long or short")
+        if self.direction not in ("long", "short", "none"):
+            raise ValueError("direction must be long, short, or none")
+        if self.status == "no_trade":
+            if self.direction != "none":
+                raise ValueError("no_trade events must use direction none")
+            return
+        if self.direction == "none":
+            raise ValueError("directional events require long or short direction")
         if self.entry <= 0 or self.invalidation <= 0 or self.target <= 0:
             raise ValueError("price levels must be positive")
         if self.direction == "long" and not self.invalidation < self.entry < self.target:

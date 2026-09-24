@@ -55,7 +55,8 @@ class OutcomeTests(unittest.TestCase):
         self.assertEqual(result.outcome, "ambiguous")
 
     def test_no_trade_is_not_evaluated(self):
-        result = evaluate_setup(make_event(status="no_trade"), [bar(0, 110.0, 90.0)])
+        event = make_event(direction="none", status="no_trade", entry=0.0, invalidation=0.0, target=0.0)
+        result = evaluate_setup(event, [bar(0, 110.0, 90.0)])
         self.assertEqual(result.outcome, "no_trade")
         self.assertIsNone(result.exit_time)
 
