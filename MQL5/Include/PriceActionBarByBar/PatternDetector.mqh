@@ -49,7 +49,7 @@ public:
    void Reset() override
      {
       m_lastPattern.type = PATTERN_NONE;
-      m_lastPattern.startBarIndex = m_lastPattern.endBarIndex = 0;
+      m_lastPattern.startTime = m_lastPattern.endTime = 0;
       m_lastPattern.note = "";
      }
 
@@ -89,16 +89,16 @@ public:
       if(nH >= 2 && NearlyEqual(highs[0].price, highs[1].price))
         {
          m_lastPattern.type = PATTERN_DOUBLE_TOP;
-         m_lastPattern.startBarIndex = highs[1].barIndex;
-         m_lastPattern.endBarIndex   = highs[0].barIndex;
+         m_lastPattern.startTime = highs[1].time;
+         m_lastPattern.endTime   = highs[0].time;
          m_lastPattern.note = "Double Top ~" + DoubleToString(highs[0].price, _Digits);
          return(true);
         }
       if(nL >= 2 && NearlyEqual(lows[0].price, lows[1].price))
         {
          m_lastPattern.type = PATTERN_DOUBLE_BOTTOM;
-         m_lastPattern.startBarIndex = lows[1].barIndex;
-         m_lastPattern.endBarIndex   = lows[0].barIndex;
+         m_lastPattern.startTime = lows[1].time;
+         m_lastPattern.endTime   = lows[0].time;
          m_lastPattern.note = "Double Bottom ~" + DoubleToString(lows[0].price, _Digits);
          return(true);
         }
@@ -114,16 +114,16 @@ public:
          if(higherHighs && higherLows)
            {
             m_lastPattern.type = PATTERN_HIGHER_HIGHS_LOWS;
-            m_lastPattern.startBarIndex = MathMax(highs[1].barIndex, lows[1].barIndex);
-            m_lastPattern.endBarIndex   = MathMin(highs[0].barIndex, lows[0].barIndex);
+            m_lastPattern.startTime = MathMin(highs[1].time, lows[1].time);
+            m_lastPattern.endTime   = MathMax(highs[0].time, lows[0].time);
             m_lastPattern.note = "Higher-High / Higher-Low structure (bull)";
             return(true);
            }
          if(lowerHighs && lowerLows)
            {
             m_lastPattern.type = PATTERN_LOWER_HIGHS_LOWS;
-            m_lastPattern.startBarIndex = MathMax(highs[1].barIndex, lows[1].barIndex);
-            m_lastPattern.endBarIndex   = MathMin(highs[0].barIndex, lows[0].barIndex);
+            m_lastPattern.startTime = MathMin(highs[1].time, lows[1].time);
+            m_lastPattern.endTime   = MathMax(highs[0].time, lows[0].time);
             m_lastPattern.note = "Lower-High / Lower-Low structure (bear)";
             return(true);
            }
@@ -134,8 +134,8 @@ public:
          if(highSlope < -m_convergenceMin && lowSlope > m_convergenceMin)
            {
             m_lastPattern.type = PATTERN_TRIANGLE;
-            m_lastPattern.startBarIndex = MathMax(highs[1].barIndex, lows[1].barIndex);
-            m_lastPattern.endBarIndex   = MathMin(highs[0].barIndex, lows[0].barIndex);
+            m_lastPattern.startTime = MathMin(highs[1].time, lows[1].time);
+            m_lastPattern.endTime   = MathMax(highs[0].time, lows[0].time);
             m_lastPattern.note = "Converging triangle";
             return(true);
            }
@@ -151,16 +151,16 @@ public:
             if(risingHighs && risingLows)
               {
                m_lastPattern.type = PATTERN_WEDGE_RISING;
-               m_lastPattern.startBarIndex = MathMax(highs[2].barIndex, lows[2].barIndex);
-               m_lastPattern.endBarIndex   = MathMin(highs[0].barIndex, lows[0].barIndex);
+               m_lastPattern.startTime = MathMin(highs[2].time, lows[2].time);
+               m_lastPattern.endTime   = MathMax(highs[0].time, lows[0].time);
                m_lastPattern.note = "3-push rising wedge (bearish per Brooks)";
                return(true);
               }
             if(fallingHighs && fallingLows)
               {
                m_lastPattern.type = PATTERN_WEDGE_FALLING;
-               m_lastPattern.startBarIndex = MathMax(highs[2].barIndex, lows[2].barIndex);
-               m_lastPattern.endBarIndex   = MathMin(highs[0].barIndex, lows[0].barIndex);
+               m_lastPattern.startTime = MathMin(highs[2].time, lows[2].time);
+               m_lastPattern.endTime   = MathMax(highs[0].time, lows[0].time);
                m_lastPattern.note = "3-push falling wedge (bullish per Brooks)";
                return(true);
               }

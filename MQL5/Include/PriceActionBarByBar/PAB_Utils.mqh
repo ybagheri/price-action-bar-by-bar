@@ -28,6 +28,17 @@ public:
       return(BodySize(o, c) / range);
      }
 
+   // Close Location Value: where the close sits within the bar's range.
+   // +1.0 = close at the high (maximally bullish close), -1.0 = close at
+   // the low (maximally bearish close), 0.0 = close at the midpoint.
+   static double CloseLocationValue(const double h, const double l, const double c)
+     {
+      double range = BarRange(h, l);
+      if(range <= 0.0)
+         return(0.0);
+      return(((c - l) - (h - c)) / range);
+     }
+
    //--- overlap between two ranges, used by the trading-range detector -----
    // Returns 0..1: fraction of the smaller range's extent covered by the
    // intersection with the other range. 1.0 = fully overlapping.

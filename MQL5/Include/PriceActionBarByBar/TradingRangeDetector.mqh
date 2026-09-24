@@ -28,6 +28,23 @@ private:
    ENUM_MARKET_STATE  m_state;
    STradingRangeInfo  m_currentRange;
 
+   //--- Phase 2: optional externally-supplied ATR series ------------------
+   // When the orchestrator calls SetATRSeries() before the update loop
+   // (typically fed from MT5's built-in iATR), that series is used as
+   // the "average range" normalizer instead of the simple internal
+   // high-low average. This is dependency injection of a data buffer,
+   // not a hard dependency on any indicator handle — the class still
+   // works standalone (e.g. in the unit-test harness) without it.
+   double             m_atr[];
+   bool               m_haveAtr;
+
+   double EffectiveAverageRange(const double &high[], const double &low[], const int index) const
+     {
+      if(m_haveAtr && index >= 0 && index < ArraySize(m_atr) && m_atr[index] > 0.0)
+         return(m_atr[index]);
+      return(CPabUtils::AverageRange(high, low, index, m_lookback));
+     }
+
 public:
                      CTradingRangeDetector(const int lookback = 20,
                                             const double overlapThreshold = 0.55,
@@ -46,6 +63,21 @@ public:
       m_currentRange.top = m_currentRange.bottom = 0.0;
       m_currentRange.startBarIndex = m_currentRange.endBarIndex = 0;
       m_currentRange.overlapRatio = 0.0;
+      m_haveAtr = false;
+      ArrayFree(m_atr);
+     }
+
+   // Phase 2: inject a precomputed ATR series (series-indexed, 0=current),
+   // typically copied from MT5's iATR() by the orchestrator once per
+   // OnCalculate call, BEFORE the analyzer Update() loop runs. Pass an
+   // empty array to fall back to the internal simple average.
+   void SetATRSeries(const double &atr[])
+     {
+      int n = ArraySize(atr);
+      ArrayResize(m_atr, n);
+      for(int i = 0; i < n; i++)
+         m_atr[i] = atr[i];
+      m_haveAtr = (n > 0);
      }
 
    string Name() override { return("TradingRangeDetector"); }
@@ -70,8 +102,8 @@ public:
         }
       double avgOverlap = (overlapN > 0) ? overlapSum / overlapN : 0.0;
 
-      // --- displacement score: net move / average bar range -------------
-      double avgRange = CPabUtils::AverageRange(high, low, index, m_lookback);
+      // --- displacement score: net move / average range (ATR if injected) -
+      double avgRange = EffectiveAverageRange(high, low, index);
       double netMove  = close[index] - close[last];
       double displacement = (avgRange > 0.0) ? MathAbs(netMove) / avgRange : 0.0;
 

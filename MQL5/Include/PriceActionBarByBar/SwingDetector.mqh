@@ -9,6 +9,9 @@
 //| CBarClassifier so it can be reused/tested independently, or swapped|
 //| for a different swing algorithm later without touching other      |
 //| modules (Liskov-substitutable via IAnalyzer).                     |
+//|                                                                    |
+//| Storage: fixed-capacity CIRCULAR buffer (head/size, no memmove),  |
+//| matching CBarClassifier's Phase 2 optimization.                   |
 //+------------------------------------------------------------------+
 #property strict
 
@@ -19,38 +22,33 @@ class CSwingDetector : public IAnalyzer
   {
 private:
    int               m_fractalLegs;   // bars required on each side (e.g. 2 = 5-bar fractal)
-   int               m_maxStored;
-   SSwingPoint       m_swings[];      // index 0 = most recent confirmed swing
+
+   int               m_capacity;
+   int               m_size;
+   int               m_head;          // index of the most recent swing (logical position 0)
+   SSwingPoint       m_swings[];
 
    void PushSwing(const SSwingPoint &sp)
      {
-      int n = ArraySize(m_swings);
-      if(n >= m_maxStored)
-        {
-         for(int i = n - 1; i > 0; i--)
-            m_swings[i] = m_swings[i - 1];
-        }
-      else
-        {
-         ArrayResize(m_swings, n + 1);
-         for(int i = n; i > 0; i--)
-            m_swings[i] = m_swings[i - 1];
-        }
-      m_swings[0] = sp;
+      m_head = (m_head - 1 + m_capacity) % m_capacity;
+      m_swings[m_head] = sp;
+      if(m_size < m_capacity)
+         m_size++;
      }
 
 public:
                      CSwingDetector(const int fractalLegs = 2, const int maxStored = 500)
      {
       m_fractalLegs = MathMax(1, fractalLegs);
-      m_maxStored   = maxStored;
+      m_capacity    = MathMax(10, maxStored);
+      ArrayResize(m_swings, m_capacity);
       Reset();
      }
 
    void Reset() override
      {
-      ArrayFree(m_swings);
-      ArrayResize(m_swings, 0);
+      m_size = 0;
+      m_head = 0;
      }
 
    string Name() override { return("SwingDetector"); }
@@ -91,24 +89,27 @@ public:
      }
 
    //--- accessors -----------------------------------------------------------
-   int  Count() const { return(ArraySize(m_swings)); }
+   int  Count() const { return(m_size); }
 
    bool GetSwing(const int i, SSwingPoint &out) const
      {
-      if(i < 0 || i >= ArraySize(m_swings))
+      if(i < 0 || i >= m_size)
          return(false);
-      out = m_swings[i];
+      int actual = (m_head + i) % m_capacity;
+      out = m_swings[actual];
       return(true);
      }
 
    // Most recent swing of a given type, if any.
    bool LatestOfType(const ENUM_SWING_TYPE t, SSwingPoint &out) const
      {
-      for(int i = 0; i < ArraySize(m_swings); i++)
+      for(int i = 0; i < m_size; i++)
         {
-         if(m_swings[i].type == t)
+         SSwingPoint sp;
+         GetSwing(i, sp);
+         if(sp.type == t)
            {
-            out = m_swings[i];
+            out = sp;
             return(true);
            }
         }

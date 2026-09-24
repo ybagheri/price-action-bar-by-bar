@@ -9,19 +9,19 @@
 - [x] `CChartRenderer`: جداسازی کامل رسم از منطق
 - [x] README + دیاگرام کلاس‌ها + مستندسازی کامل
 
-## Phase 2 — دقت و اعتبارسنجی
-- [ ] بک‌تست دستی روی چند نماد/تایم‌فریم و مقایسه با تشخیص چشمی طبق کتاب بروکس
-- [ ] اضافه‌کردن شرط "close محل" برای H2/L2 (فیلتر قدرت سیگنال، نه فقط شمارش)
-- [ ] پارامتری‌کردن ATR واقعی MT5 (`iATR`) به‌جای `AverageRange` ساده در `PAB_Utils`
-- [ ] بهینه‌سازی ring buffer در `CBarClassifier`/`CSwingDetector` (فعلاً push-front با شیفت O(n) است — روی تاریخچه‌ی خیلی طولانی در اولین لود می‌تواند کند باشد؛ گزینه: circular index به‌جای شیفت واقعی حافظه)
-- [ ] اضافه‌کردن unit-test harness به‌صورت اسکریپت MQL5 مستقل (بدون چارت) برای هر آنالایزر
+## Phase 2 — دقت و اعتبارسنجی 🟡 (این نسخه — بخش قابل‌کدنویسی انجام شد)
+- [ ] بک‌تست دستی روی چند نماد/تایم‌فریم و مقایسه با تشخیص چشمی طبق کتاب بروکس — **بر عهده‌ی شما**، چون نیاز به اجرای واقعی روی MT5 دارد؛ از اسکریپت `PAB_UnitTests.mq5` برای regression check سریع استفاده کنید
+- [x] اضافه‌کردن شرط "close محل" برای H2/L2 (Close Location Value + کم‌عمق‌تر بودن نسبت به پول‌بک قبلی → `ENUM_SIGNAL_QUALITY`، نمایش با `*` روی چارت)
+- [x] پارامتری‌کردن ATR واقعی MT5 (`iATR`) — تزریق به `CTradingRangeDetector` از طریق `SetATRSeries()`، با fallback خودکار به میانگین ساده در نبود آن (مثلاً داخل unit test)
+- [x] بهینه‌سازی ring buffer در `CBarClassifier`/`CSwingDetector` — هر دو حالا circular buffer با push در O(1) هستند
+- [x] اضافه‌کردن unit-test harness به‌صورت اسکریپت MQL5 مستقل (`MQL5/Scripts/PAB_UnitTests.mq5`) — ۵ گروه تست روی هر آنالایزر
 
-## Phase 3 — عمق تحلیلی بیشتر (وفادار به بروکس)
-- [ ] Always-In state machine (تفکیک صریح‌تر بین ترند قوی/ضعیف)
-- [ ] Signal-bar quality scoring (شبیه ratio table که در FM-Indicator ساخته شد)
-- [ ] تشخیص Breakout bar با معیار قدرت (close near extreme, minimal opposite tail)
-- [ ] Climax bar / Exhaustion detection
-- [ ] Measured Move detection مستقل (یا اتصال مستقیم به موتور موجود در `ybagheri/FM-indicator`)
+## Phase 3 — عمق تحلیلی بیشتر (وفادار به بروکس) ✅ (این نسخه)
+- [x] Always-In state machine — `CAlwaysInTracker`: وضعیت چسبنده که فقط با شکست ساختاری (close فراتر از آخرین swing تأییدشده‌ی مخالف) عوض می‌شود، بر خلاف `ENUM_MARKET_STATE` که هر بار دوباره امتیازدهی می‌شود
+- [x] تشخیص Breakout bar — `CBarClassifier::IsBreakoutBar()`: بار ترند قوی که هم CLV مطلوب دارد هم یک اکسترمم N-باری تازه می‌سازد
+- [x] Climax bar / Exhaustion detection — `CBarClassifier::IsClimaxBar()`: رنج غیرعادی بزرگ (نسبت به میانگین/ATR) + بسته‌شدن ضعیف/بی‌تصمیم
+- [x] Measured Move detection مستقل — `CMeasuredMoveDetector`: پروجکشن سبک سه-swing، **جایگزین موتور FM-indicator نیست** (به یادداشت scope داخل فایل نگاه کنید؛ یکپارچه‌سازی واقعی در Phase 5)
+- [x] رفع یک باگ واقعی از Phase 1: `SPatternInfo`/`SMeasuredMoveInfo` به‌جای `barIndex` (که با اومدن بار جدید نامعتبر می‌شد) حالا `datetime` پایدار نگه می‌دارند — دقیقاً همان الگویی که `CSwingDetector` از اول درست پیاده کرده بود
 
 ## Phase 4 — پورت NinjaTrader (NinjaScript / C#)
 - [ ] بازنویسی فقط لایه‌ی `ChartRenderer` معادل با Draw.* API نینجاتریدر
@@ -29,8 +29,9 @@
 - [ ] هم‌راستاسازی پارامترها بین دو پلتفرم برای رفتار یکسان
 
 ## Phase 5 — یکپارچه‌سازی با FM-Indicator
-- [ ] استفاده از `CTradingRangeDetector.State()` به‌عنوان context filter برای پروجکشن‌های Measured Move
+- [ ] استفاده از `CTradingRangeDetector.State()` و `CAlwaysInTracker.State()` به‌عنوان context filter برای پروجکشن‌های Measured Move موجود در FM-indicator
 - [ ] استفاده از `CPatternDetector` برای تأیید/رد زون‌های reversal موجود در FM-Indicator
+- [ ] جایگزینی/کنار گذاشتن `CMeasuredMoveDetector` سبک این پروژه به نفع موتور کامل‌تر FM-indicator، و صرفاً پاس‌دادن context (always-in, breakout/climax) به آن
 - [ ] مستندسازی مشترک بین دو ریپو (یا merge اختیاری در آینده)
 
 ## Phase 6 (اختیاری) — لایه‌ی ریسرچ
