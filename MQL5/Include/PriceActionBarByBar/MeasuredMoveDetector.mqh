@@ -22,9 +22,8 @@
 #property strict
 
 #include "PAB_Types.mqh"
-#include "PAB_IAnalyzer.mqh"
 
-class CMeasuredMoveDetector : public IAnalyzer
+class CMeasuredMoveDetector
   {
 private:
    SMeasuredMoveInfo m_current;
@@ -35,23 +34,13 @@ public:
       Reset();
      }
 
-   void Reset() override
+   void Reset()
      {
       m_current.active = false;
       m_current.isBullish = false;
       m_current.leg1Start = m_current.leg1End = 0.0;
       m_current.pivotPrice = m_current.targetPrice = 0.0;
       m_current.pivotTime = 0;
-     }
-
-   string Name() override { return("MeasuredMoveDetector"); }
-
-   // No-op by design — see class header.
-   void Update(const int index,
-               const datetime &time[], const double &open[], const double &high[],
-               const double &low[], const double &close[], const int rates_total) override
-     {
-      // no-op by design
      }
 
    // swings[0] = newest. Needs at least 3 swings, alternating in type

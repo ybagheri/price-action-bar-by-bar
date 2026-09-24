@@ -28,16 +28,15 @@
 #property indicator_buffers 1
 #property indicator_plots   1
 
-#include <PriceActionBarByBar/PAB_Types.mqh>
-#include <PriceActionBarByBar/PAB_IAnalyzer.mqh>
-#include <PriceActionBarByBar/PAB_Utils.mqh>
-#include <PriceActionBarByBar/BarClassifier.mqh>
-#include <PriceActionBarByBar/SwingDetector.mqh>
-#include <PriceActionBarByBar/TradingRangeDetector.mqh>
-#include <PriceActionBarByBar/PatternDetector.mqh>
-#include <PriceActionBarByBar/AlwaysInTracker.mqh>
-#include <PriceActionBarByBar/MeasuredMoveDetector.mqh>
-#include <PriceActionBarByBar/ChartRenderer.mqh>
+#include "../Include/PriceActionBarByBar/PAB_Types.mqh"
+#include "../Include/PriceActionBarByBar/PAB_Utils.mqh"
+#include "../Include/PriceActionBarByBar/BarClassifier.mqh"
+#include "../Include/PriceActionBarByBar/SwingDetector.mqh"
+#include "../Include/PriceActionBarByBar/TradingRangeDetector.mqh"
+#include "../Include/PriceActionBarByBar/PatternDetector.mqh"
+#include "../Include/PriceActionBarByBar/AlwaysInTracker.mqh"
+#include "../Include/PriceActionBarByBar/MeasuredMoveDetector.mqh"
+#include "../Include/PriceActionBarByBar/ChartRenderer.mqh"
 
 //====================================================================
 // INPUTS
@@ -99,15 +98,44 @@ CPatternDetector    *g_patterns     = NULL;
 CAlwaysInTracker    *g_alwaysIn     = NULL;
 CMeasuredMoveDetector *g_measuredMove = NULL;
 CChartRenderer      *g_renderer     = NULL;
+string              g_objectPrefix = "";
 
 int                 g_atrHandle     = INVALID_HANDLE;   // Phase 2: real ATR, owned by the orchestrator
 double              g_atrBuf[];                          // scratch buffer, refilled every OnCalculate call
+
+bool ValidateInputs()
+  {
+   if(InpDojiBodyRatio <= 0.0 || InpDojiBodyRatio > 1.0 ||
+      InpClvFavorableMin < 0.0 || InpClvFavorableMin > 1.0 ||
+      InpFractalLegs < 1 || InpFractalLegs > 50 ||
+      InpRegimeLookback < 5 || InpRegimeLookback > 500 ||
+      InpOverlapThreshold < 0.0 || InpOverlapThreshold > 1.0 ||
+      InpDisplaceThreshold <= 0.0 ||
+      InpATRPeriod < 1 || InpATRPeriod > 1000 ||
+      InpSwingSimilarityPct < 0.0 || InpSwingSimilarityPct > 100.0 ||
+      InpConvergenceMin <= 0.0 ||
+      InpBreakoutLookback < 1 || InpBreakoutLookback > 500 ||
+      InpBreakoutClvMin < 0.0 || InpBreakoutClvMin > 1.0 ||
+      InpClimaxLookback < 2 || InpClimaxLookback > 500 ||
+      InpClimaxRangeMult <= 0.0 ||
+      InpClimaxBodyRatioMax < 0.0 || InpClimaxBodyRatioMax > 1.0)
+     {
+      Print("PriceActionBarByBar: invalid input parameters");
+      return(false);
+     }
+   return(true);
+  }
 
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                        |
 //+------------------------------------------------------------------+
 int OnInit()
   {
+   if(!ValidateInputs())
+      return(INIT_PARAMETERS_INCORRECT);
+
+   g_objectPrefix = StringFormat("PAB_%I64d", (long)GetMicrosecondCount());
+
    SetIndexBuffer(0, g_dummyBuffer, INDICATOR_DATA);
    ArraySetAsSeries(g_dummyBuffer, true);
    PlotIndexSetInteger(0, PLOT_DRAW_TYPE, DRAW_NONE);
@@ -120,7 +148,14 @@ int OnInit()
    g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin);
    g_alwaysIn   = new CAlwaysInTracker();
    g_measuredMove = new CMeasuredMoveDetector();
-   g_renderer   = new CChartRenderer(0, "PAB");
+   g_renderer   = new CChartRenderer(ChartID(), g_objectPrefix);
+
+   if(g_classifier == NULL || g_swings == NULL || g_range == NULL || g_patterns == NULL ||
+      g_alwaysIn == NULL || g_measuredMove == NULL || g_renderer == NULL)
+     {
+      Print("PriceActionBarByBar: analyzer allocation failed");
+      return(INIT_FAILED);
+     }
 
    if(InpUseRealATR)
      {
@@ -213,21 +248,6 @@ int OnCalculate(const int rates_total,
    ArraySetAsSeries(low, true);
    ArraySetAsSeries(close, true);
 
-   // Phase 2: refresh the ATR series once per call — copied here, but
-   // injected into the range detector AFTER any Reset() below so a
-   // full history reload doesn't wipe it out again.
-   bool haveFreshAtr = false;
-   if(g_atrHandle != INVALID_HANDLE)
-     {
-      ArraySetAsSeries(g_atrBuf, true);
-      int copied = CopyBuffer(g_atrHandle, 0, 0, rates_total, g_atrBuf);
-      haveFreshAtr = (copied > 0);
-     }
-
-   // On the very first run (or after a history reload) re-process
-   // everything; otherwise only process bars that are new since the
-   // last call. We always reprocess the still-forming bar (index 0)
-   // plus one bar of safety margin because it can repaint until close.
    int start;
    if(prev_calculated <= 0)
      {
@@ -238,29 +258,39 @@ int OnCalculate(const int rates_total,
       g_alwaysIn.Reset();
       g_measuredMove.Reset();
       g_renderer.ClearAll();
-      start = rates_total - 1;   // oldest bar first
+      start = rates_total - 1;
      }
    else
      {
-      int newBars = rates_total - prev_calculated;
-      start = MathMin(rates_total - 1, newBars + 1); // +1 safety margin for the reforming bar
+      int newBars = MathMax(0, rates_total - prev_calculated);
+      start = MathMin(rates_total - 1, newBars);
+     }
+
+   bool processedClosedBar = (start >= 1);
+   bool haveFreshAtr = false;
+   if(processedClosedBar && g_atrHandle != INVALID_HANDLE)
+     {
+      ArraySetAsSeries(g_atrBuf, true);
+      int copied = CopyBuffer(g_atrHandle, 0, 0, rates_total, g_atrBuf);
+      haveFreshAtr = (copied == rates_total);
+      if(!haveFreshAtr)
+         PrintFormat("PriceActionBarByBar: CopyBuffer copied %d of %d ATR values, error %d",
+                     copied, rates_total, GetLastError());
      }
 
    if(haveFreshAtr)
       g_range.SetATRSeries(g_atrBuf);
 
-   // ----- oldest-to-newest pipeline pass ---------------------------------
-   for(int i = start; i >= 0; i--)
+   for(int i = start; i >= 1; i--)
      {
       g_classifier.Update(i, time, open, high, low, close, rates_total);
       g_swings.Update(i, time, open, high, low, close, rates_total);
       g_range.Update(i, time, open, high, low, close, rates_total);
      }
 
-   // ----- pattern detection runs off the swing list, once per call ------
    int swingCount = g_swings.Count();
    SSwingPoint swingArr[];
-   if(swingCount > 0)
+   if(processedClosedBar && swingCount > 0)
      {
       ArrayResize(swingArr, swingCount);
       for(int i = 0; i < swingCount; i++)
@@ -269,18 +299,17 @@ int OnCalculate(const int rates_total,
       g_measuredMove.AnalyzeSwings(swingArr, swingCount);
      }
 
-   // ----- always-in: sticky stance, flips only on a structural break ----
-   SSwingPoint latestHigh, latestLow;
-   bool haveHigh = g_swings.LatestOfType(SWING_HIGH, latestHigh);
-   bool haveLow  = g_swings.LatestOfType(SWING_LOW, latestLow);
-   g_alwaysIn.Evaluate(close[0], haveHigh, haveHigh ? latestHigh.price : 0.0,
-                        haveLow, haveLow ? latestLow.price : 0.0, time[0]);
+   if(processedClosedBar)
+     {
+      SSwingPoint latestHigh, latestLow;
+      bool haveHigh = g_swings.LatestOfType(SWING_HIGH, latestHigh);
+      bool haveLow  = g_swings.LatestOfType(SWING_LOW, latestLow);
+      g_alwaysIn.Evaluate(close[1], haveHigh, haveHigh ? latestHigh.price : 0.0,
+                           haveLow, haveLow ? latestLow.price : 0.0, time[1]);
+     }
 
-   // ----- rendering: draw the freshly (re)processed bars -----------------
-   // CBarClassifier's ring buffer is aligned 1:1 with series index i for
-   // every bar that has been through Update() at least once, so i doubles
-   // as both the series index and the classifier buffer index here.
-   for(int i = 0; i <= start; i++)
+   int renderCount = MathMin(g_classifier.Count(), start + 1);
+   for(int i = 0; i < renderCount; i++)
      {
       SBarInfo bar;
       if(g_classifier.GetBar(i, bar))
@@ -301,14 +330,20 @@ int OnCalculate(const int rates_total,
    STradingRangeInfo ri;
    if(g_range.GetRange(ri))
       g_renderer.DrawTradingRange(ri, time);
+   else
+      g_renderer.HideTradingRange();
 
    SPatternInfo pi = g_patterns.LastPattern();
    if(pi.type != PATTERN_NONE)
-      g_renderer.DrawPattern(pi, high[0]);
+      g_renderer.DrawPattern(pi, high[1]);
+   else
+      g_renderer.HidePattern();
 
    SMeasuredMoveInfo mm = g_measuredMove.Current();
    if(mm.active)
-      g_renderer.DrawMeasuredMove(mm, time[0]);
+      g_renderer.DrawMeasuredMove(mm, time[1]);
+   else
+      g_renderer.HideMeasuredMove();
 
    if(InpShowStatePanel)
      {
@@ -316,6 +351,8 @@ int OnCalculate(const int rates_total,
                                    StateLabel(g_range.State()), AlwaysInLabel(g_alwaysIn.State()), swingCount);
       g_renderer.DrawStatePanel(panel);
      }
+   else
+      g_renderer.HideStatePanel();
 
    return(rates_total);
   }

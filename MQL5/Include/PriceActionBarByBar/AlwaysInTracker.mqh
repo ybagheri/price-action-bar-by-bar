@@ -19,9 +19,8 @@
 #property strict
 
 #include "PAB_Types.mqh"
-#include "PAB_IAnalyzer.mqh"
 
-class CAlwaysInTracker : public IAnalyzer
+class CAlwaysInTracker
   {
 private:
    ENUM_ALWAYS_IN_STATE m_state;
@@ -35,22 +34,12 @@ public:
       Reset();
      }
 
-   void Reset() override
+   void Reset()
      {
       m_state = ALWAYS_IN_NONE;
       m_referenceExtreme = 0.0;
       m_lastFlipTime = 0;
       m_haveFlip = false;
-     }
-
-   string Name() override { return("AlwaysInTracker"); }
-
-   // No-op by design — see class header.
-   void Update(const int index,
-               const datetime &time[], const double &open[], const double &high[],
-               const double &low[], const double &close[], const int rates_total) override
-     {
-      // no-op by design
      }
 
    // Called once per bar (on the newest/current bar) by the orchestrator,

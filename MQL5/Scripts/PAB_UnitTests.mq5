@@ -322,6 +322,70 @@ void TestMeasuredMove()
          "Target price equals pivot + leg1 size (" + DoubleToString(expectedTarget, 5) + ")");
   }
 
+void TestIdempotentUpdates()
+  {
+   Print("--- TestIdempotentUpdates ---");
+
+   double o[] = {1.1000, 1.1020, 1.1010};
+   double h[] = {1.1010, 1.1030, 1.1020};
+   double l[] = {1.0990, 1.1010, 1.1000};
+   double c[] = {1.1005, 1.1025, 1.1015};
+
+   datetime time[]; double open[], high[], low[], close[];
+   BuildSeries(o, h, l, c, time, open, high, low, close);
+   int n = ArraySize(open);
+
+   CBarClassifier bc;
+   bc.Update(0, time, open, high, low, close, n);
+   bc.Update(0, time, open, high, low, close, n);
+   Check(bc.Count() == 1, "Duplicate classifier update does not duplicate the bar");
+
+   CSwingDetector sd(1);
+   sd.Update(0, time, open, high, low, close, n);
+   sd.Update(0, time, open, high, low, close, n);
+   Check(sd.Count() == 1, "Duplicate swing update does not duplicate the confirmed swing");
+  }
+
+void TestRangeTransitionClearsRange()
+  {
+   Print("--- TestRangeTransitionClearsRange ---");
+
+   int n = 40;
+   datetime time[]; double open[], high[], low[], close[];
+   ArrayResize(time, n); ArrayResize(open, n); ArrayResize(high, n);
+   ArrayResize(low, n); ArrayResize(close, n);
+   datetime t0 = D'2026.01.01 00:00';
+
+   for(int i = 0; i < n; i++)
+     {
+      time[i] = t0 + (n - i) * 3600;
+      if(i < 20)
+        {
+         double price = 1.1000 + (19 - i) * 0.00004;
+         open[i] = price - 0.00001;
+         high[i] = price + 0.00001;
+         low[i] = price - 0.00002;
+         close[i] = price;
+        }
+      else
+        {
+         double wobble = (i % 2 == 0) ? 0.0003 : -0.0003;
+         open[i] = 1.1000 + wobble;
+         high[i] = 1.1000 + MathAbs(wobble) + 0.0001;
+         low[i] = 1.1000 - MathAbs(wobble) - 0.0001;
+         close[i] = 1.1000 - wobble;
+        }
+     }
+
+   CTradingRangeDetector trd(20, 0.55, 30.0);
+   for(int i = n - 1; i >= 0; i--)
+      trd.Update(i, time, open, high, low, close, n);
+
+   STradingRangeInfo ri;
+   Check(trd.State() == STATE_TRANSITION, "Low-displacement non-overlapping bars scored as STATE_TRANSITION");
+   Check(!trd.GetRange(ri), "Transition state clears stale trading-range data");
+  }
+
 //+------------------------------------------------------------------+
 //| Script entry point                                                |
 //+------------------------------------------------------------------+
@@ -341,6 +405,8 @@ void OnStart()
    TestBreakoutAndClimax();
    TestAlwaysIn();
    TestMeasuredMove();
+   TestIdempotentUpdates();
+   TestRangeTransitionClearsRange();
 
    Print("------------------------------------------------------");
    PrintFormat(" RESULT: %d passed, %d failed", g_pass, g_fail);
@@ -349,5 +415,5 @@ void OnStart()
    if(g_fail > 0)
       Alert("PriceActionBarByBar unit tests: ", g_fail, " FAILED — see Experts log.");
    else
-      Comment("PriceActionBarByBar unit tests: all ", g_pass, " passed.");
+      Print("PriceActionBarByBar unit tests: all ", g_pass, " passed.");
   }

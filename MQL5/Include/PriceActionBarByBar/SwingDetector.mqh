@@ -26,6 +26,7 @@ private:
    int               m_capacity;
    int               m_size;
    int               m_head;          // index of the most recent swing (logical position 0)
+   datetime          m_lastProcessedTime;
    SSwingPoint       m_swings[];
 
    void PushSwing(const SSwingPoint &sp)
@@ -49,6 +50,7 @@ public:
      {
       m_size = 0;
       m_head = 0;
+      m_lastProcessedTime = 0;
      }
 
    string Name() override { return("SwingDetector"); }
@@ -60,8 +62,12 @@ public:
    void Update(const int index,
                const datetime &time[], const double &open[], const double &high[],
                const double &low[], const double &close[], const int rates_total) override
-     {
-      int c = index + m_fractalLegs;   // candidate center bar
+      {
+       if(index < 0 || index >= rates_total || time[index] <= m_lastProcessedTime)
+          return;
+       m_lastProcessedTime = time[index];
+
+       int c = index + m_fractalLegs;   // candidate center bar
       if(c + m_fractalLegs >= rates_total)
          return; // not enough older bars yet to confirm
 

@@ -27,6 +27,7 @@ private:
    double             m_displaceThreshold; // |net move| / avgRange above this => trending
    ENUM_MARKET_STATE  m_state;
    STradingRangeInfo  m_currentRange;
+   datetime           m_lastProcessedTime;
 
    //--- Phase 2: optional externally-supplied ATR series ------------------
    // When the orchestrator calls SetATRSeries() before the update loop
@@ -59,6 +60,7 @@ public:
    void Reset() override
      {
       m_state = STATE_TRADING_RANGE;
+      m_lastProcessedTime = 0;
       m_currentRange.active = false;
       m_currentRange.top = m_currentRange.bottom = 0.0;
       m_currentRange.startBarIndex = m_currentRange.endBarIndex = 0;
@@ -87,8 +89,12 @@ public:
    void Update(const int index,
                const datetime &time[], const double &open[], const double &high[],
                const double &low[], const double &close[], const int rates_total) override
-     {
-      int last = index + m_lookback - 1;
+      {
+       if(index < 0 || index >= rates_total || time[index] <= m_lastProcessedTime)
+          return;
+       m_lastProcessedTime = time[index];
+
+       int last = index + m_lookback - 1;
       if(last >= rates_total)
          return; // not enough history yet
 
@@ -115,9 +121,7 @@ public:
          if(low[i]  < windowLow)  windowLow  = low[i];
         }
 
-      ENUM_MARKET_STATE prevState = m_state;
-
-      if(displacement >= m_displaceThreshold && avgOverlap < m_overlapThreshold)
+       if(displacement >= m_displaceThreshold && avgOverlap < m_overlapThreshold)
         {
          m_state = (netMove > 0) ? STATE_BULL_TREND : STATE_BEAR_TREND;
          m_currentRange.active = false;
@@ -132,10 +136,11 @@ public:
          m_currentRange.endBarIndex = index;
          m_currentRange.overlapRatio = avgOverlap;
         }
-      else
-        {
-         m_state = STATE_TRANSITION;
-        }
+       else
+         {
+          m_state = STATE_TRANSITION;
+          m_currentRange.active = false;
+         }
      }
 
    //--- accessors -----------------------------------------------------------

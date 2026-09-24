@@ -42,6 +42,7 @@ private:
    int               m_capacity;
    int               m_size;
    int               m_head;              // index of the most recent bar (logical position 0)
+   datetime          m_lastProcessedTime;
    SBarInfo          m_bars[];
 
    // Pullback-sequence state machine. A "leg" starts when a trend bar
@@ -274,6 +275,7 @@ public:
      {
       m_size = 0;
       m_head = 0;
+      m_lastProcessedTime = 0;
       m_haveLeg = false;
       m_legIsBull = false;
       m_legExtreme = 0.0;
@@ -290,8 +292,12 @@ public:
    void Update(const int index,
                const datetime &time[], const double &open[], const double &high[],
                const double &low[], const double &close[], const int rates_total) override
-     {
-      SBarInfo bar;
+      {
+       if(index < 0 || index >= rates_total || time[index] <= m_lastProcessedTime)
+          return;
+       m_lastProcessedTime = time[index];
+
+       SBarInfo bar;
       bar.Clear();
       bar.time  = time[index];
       bar.open  = open[index];

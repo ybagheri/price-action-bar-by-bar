@@ -19,10 +19,9 @@
 #property strict
 
 #include "PAB_Types.mqh"
-#include "PAB_IAnalyzer.mqh"
 #include "PAB_Utils.mqh"
 
-class CPatternDetector : public IAnalyzer
+class CPatternDetector
   {
 private:
    double            m_similarityPct;   // e.g. 0.001 = 0.1% price tolerance for "equal" swings
@@ -46,23 +45,11 @@ public:
       Reset();
      }
 
-   void Reset() override
+   void Reset()
      {
       m_lastPattern.type = PATTERN_NONE;
       m_lastPattern.startTime = m_lastPattern.endTime = 0;
       m_lastPattern.note = "";
-     }
-
-   string Name() override { return("PatternDetector"); }
-
-   // Intentional no-op — see class header. Present only to satisfy
-   // IAnalyzer so the orchestrator can still hold this in a generic
-   // IAnalyzer[] array alongside the bar-driven analyzers if desired.
-   void Update(const int index,
-               const datetime &time[], const double &open[], const double &high[],
-               const double &low[], const double &close[], const int rates_total) override
-     {
-      // no-op by design
      }
 
    // Real entry point: pass the most recent swings (index 0 = newest),

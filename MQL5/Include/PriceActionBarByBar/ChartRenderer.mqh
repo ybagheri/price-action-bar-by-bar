@@ -39,6 +39,12 @@ private:
       return(m_prefix + "_" + kind + "_" + uniq);
      }
 
+   void DeleteObject(const string name)
+     {
+      if(ObjectFind(m_chartId, name) >= 0)
+         ObjectDelete(m_chartId, name);
+     }
+
 public:
                      CChartRenderer(const long chartId = 0, const string prefix = "PAB")
      {
@@ -91,8 +97,12 @@ public:
    //--- drawing -----------------------------------------------------------
    void DrawBarLabel(const SBarInfo &bar, const int barIndex)
      {
+      string name = ObjName("LBL", (string)bar.time);
       if(!m_showPullbackLabels || bar.pullbackType == PB_NONE)
+        {
+         DeleteObject(name);
          return;
+        }
 
       string txt;
       switch(bar.pullbackType)
@@ -114,7 +124,6 @@ public:
       else if(bar.signalQuality == QUALITY_WEAK) { fontSize = 6; }
 
       bool isHigh = (bar.pullbackType == PB_H1 || bar.pullbackType == PB_H2 || bar.pullbackType == PB_H3_PLUS);
-      string name = ObjName("LBL", (string)bar.time);
       double price = isHigh ? bar.high : bar.low;
       double offset = bar.range * 0.15 + _Point;
       price = isHigh ? price + offset : price - offset;
@@ -144,9 +153,12 @@ public:
 
    void DrawTradingRange(const STradingRangeInfo &r, const datetime &time[])
      {
-      if(!m_showRange || !r.active)
-         return;
       string name = ObjName("RANGE", "current");
+      if(!m_showRange || !r.active)
+        {
+         DeleteObject(name);
+         return;
+        }
       datetime t1 = time[r.startBarIndex];
       datetime t2 = time[r.endBarIndex];
       if(ObjectFind(m_chartId, name) < 0)
@@ -165,10 +177,13 @@ public:
    // Phase 3: small triangle under/over a breakout bar (yellow by default).
    void DrawBreakoutMarker(const SBarInfo &bar)
      {
-      if(!m_showBreakouts || !bar.isBreakoutBar)
-         return;
-      bool bull = (bar.barType == BAR_BULL_TREND);
       string name = ObjName("BRK", (string)bar.time);
+      if(!m_showBreakouts || !bar.isBreakoutBar)
+        {
+         DeleteObject(name);
+         return;
+        }
+      bool bull = (bar.barType == BAR_BULL_TREND);
       double offset = bar.range * 0.30 + _Point;
       double price = bull ? bar.low - offset : bar.high + offset;
       if(ObjectFind(m_chartId, name) < 0)
@@ -182,9 +197,12 @@ public:
    // visual heads-up that this big-range bar had a weak/indecisive close.
    void DrawClimaxMarker(const SBarInfo &bar)
      {
-      if(!m_showClimax || !bar.isClimax)
-         return;
       string name = ObjName("CLX", (string)bar.time);
+      if(!m_showClimax || !bar.isClimax)
+        {
+         DeleteObject(name);
+         return;
+        }
       double price = (bar.high + bar.low) / 2.0;
       if(ObjectFind(m_chartId, name) < 0)
          ObjectCreate(m_chartId, name, OBJ_ARROW, 0, bar.time, price);
@@ -197,9 +215,14 @@ public:
    // projection, from the pivot swing out to the current (newest) bar.
    void DrawMeasuredMove(const SMeasuredMoveInfo &mm, const datetime currentBarTime)
      {
-      if(!m_showMeasuredMove || !mm.active)
-         return;
       string name = ObjName("MM", "target");
+      string lblName = ObjName("MM", "label");
+      if(!m_showMeasuredMove || !mm.active)
+        {
+         DeleteObject(name);
+         DeleteObject(lblName);
+         return;
+        }
       if(ObjectFind(m_chartId, name) < 0)
          ObjectCreate(m_chartId, name, OBJ_TREND, 0, mm.pivotTime, mm.targetPrice, currentBarTime, mm.targetPrice);
       else
@@ -212,7 +235,6 @@ public:
       ObjectSetInteger(m_chartId, name, OBJPROP_RAY_RIGHT, false);
       ObjectSetInteger(m_chartId, name, OBJPROP_WIDTH, 1);
 
-      string lblName = ObjName("MM", "label");
       if(ObjectFind(m_chartId, lblName) < 0)
          ObjectCreate(m_chartId, lblName, OBJ_TEXT, 0, currentBarTime, mm.targetPrice);
       else
@@ -225,9 +247,12 @@ public:
 
    void DrawPattern(const SPatternInfo &p, const double topPrice)
      {
+      string name = ObjName("PATTERN", "current");
       if(!m_showPatterns || p.type == PATTERN_NONE)
+        {
+         DeleteObject(name);
          return;
-      string name = ObjName("PATTERN", (string)p.endTime);
+        }
       if(ObjectFind(m_chartId, name) < 0)
          ObjectCreate(m_chartId, name, OBJ_TEXT, 0, p.endTime, topPrice);
       else
@@ -251,6 +276,27 @@ public:
         }
       ObjectSetString(m_chartId, name, OBJPROP_TEXT, text);
       ObjectSetInteger(m_chartId, name, OBJPROP_COLOR, clrWhite);
+     }
+
+   void HideTradingRange()
+     {
+      DeleteObject(ObjName("RANGE", "current"));
+     }
+
+   void HidePattern()
+     {
+      DeleteObject(ObjName("PATTERN", "current"));
+     }
+
+   void HideMeasuredMove()
+     {
+      DeleteObject(ObjName("MM", "target"));
+      DeleteObject(ObjName("MM", "label"));
+     }
+
+   void HideStatePanel()
+     {
+      DeleteObject(ObjName("PANEL", "state"));
      }
 
    // Removes every object this indicator ever created (OnDeinit / on reload).
