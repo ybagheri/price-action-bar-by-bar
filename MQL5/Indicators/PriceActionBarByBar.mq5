@@ -68,6 +68,8 @@ input double InpConvergenceMin     = 0.15;   // Minimum slope convergence to fla
 input group "=== Decision Support ==="
 input int    InpMinimumQuality     = 55;
 input double InpMinimumRiskReward  = 1.50;
+input bool   InpExportEvents       = false;
+input string InpEventFile          = "pab_events.csv";
 
 input group "=== Breakout / Climax (Phase 3) ==="
 input int    InpBreakoutLookback   = 10;     // Bars to check for a fresh extreme to qualify as a breakout bar
@@ -119,6 +121,7 @@ string              g_objectPrefix = "";
 
 int                 g_atrHandle     = INVALID_HANDLE;   // Phase 2: real ATR, owned by the orchestrator
 double              g_atrBuf[];                          // scratch buffer, refilled every OnCalculate call
+int                 g_eventFileHandle = INVALID_HANDLE;
 
 bool ValidateInputs()
   {
@@ -190,6 +193,26 @@ int OnInit()
          Print("PriceActionBarByBar: iATR() failed, falling back to the internal simple average — error ", GetLastError());
      }
 
+   if(InpExportEvents)
+     {
+      g_eventFileHandle = FileOpen(InpEventFile,
+                                   FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI | FILE_SHARE_READ);
+      if(g_eventFileHandle == INVALID_HANDLE)
+        {
+         PrintFormat("PriceActionBarByBar: event export open failed for %s, error %d",
+                     InpEventFile, GetLastError());
+         return(INIT_FAILED);
+        }
+      if(FileSize(g_eventFileHandle) == 0)
+         FileWrite(g_eventFileHandle,
+                   "event_id", "direction", "setup_type", "status",
+                   "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
+                   "entry", "invalidation", "target", "risk_reward", "quality",
+                   "engine_version", "parameter_version");
+      else
+         FileSeek(g_eventFileHandle, 0, SEEK_END);
+     }
+
    g_renderer.SetColors(InpColorBull, InpColorBear, InpColorDoji,
                          InpColorSwingHigh, InpColorSwingLow,
                          InpColorRange, InpColorPattern,
@@ -206,6 +229,12 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
+   if(g_eventFileHandle != INVALID_HANDLE)
+     {
+      FileClose(g_eventFileHandle);
+      g_eventFileHandle = INVALID_HANDLE;
+     }
+
    if(g_renderer != NULL)
       g_renderer.ClearAll();
 
@@ -249,6 +278,33 @@ string AlwaysInLabel(const ENUM_ALWAYS_IN_STATE s)
       case ALWAYS_IN_SHORT: return("Short");
      }
    return("None");
+  }
+
+string SetupDirectionLabel(const ENUM_SETUP_DIRECTION direction)
+  {
+   if(direction == SETUP_LONG) return("long");
+   if(direction == SETUP_SHORT) return("short");
+   return("none");
+  }
+
+string SetupStatusLabel(const ENUM_SETUP_STATUS status)
+  {
+   if(status == STATUS_CONFIRMED) return("confirmed");
+   if(status == STATUS_PROBABLE) return("probable");
+   if(status == STATUS_POSSIBLE) return("possible");
+   if(status == STATUS_WEAK) return("weak");
+   return("no_trade");
+  }
+
+string SetupTypeLabel(const ENUM_SETUP_TYPE type)
+  {
+   if(type == SETUP_TREND_PULLBACK) return("trend_pullback");
+   if(type == SETUP_SECOND_ENTRY) return("second_entry");
+   if(type == SETUP_RANGE_REVERSAL) return("range_reversal");
+   if(type == SETUP_FAILED_BREAKOUT) return("failed_breakout");
+   if(type == SETUP_BREAKOUT_FOLLOW_THROUGH) return("breakout_follow_through");
+   if(type == SETUP_WEDGE_REVERSAL) return("wedge_reversal");
+   return("no_trade");
   }
 
 //+------------------------------------------------------------------+
@@ -350,6 +406,28 @@ int OnCalculate(const int rates_total,
          SPatternInfo currentPattern = g_patterns.LastPattern();
          SMeasuredMoveInfo currentMeasured = g_measuredMove.Current();
          g_decision.Analyze(latestClosed, g_contextInfo, currentPattern, currentMeasured, g_candidate);
+         if(g_eventFileHandle != INVALID_HANDLE && g_candidate.barTime > 0)
+           {
+            datetime closeTime = latestClosed.time + PeriodSeconds(_Period);
+            string parameterVersion = StringFormat("q%d|rr%.2f|f%d|l%.2f|s%.2f|b%d|c%.2f",
+                                                  InpMinimumQuality, InpMinimumRiskReward,
+                                                  InpFractalLegs, InpLargeRangeMult, InpSmallRangeMult,
+                                                  InpBreakoutLookback, InpClimaxRangeMult);
+            FileWrite(g_eventFileHandle,
+                      StringFormat("%I64d-%d", (long)latestClosed.time, g_candidate.qualityScore),
+                      SetupDirectionLabel(g_candidate.direction), SetupTypeLabel(g_candidate.type),
+                      SetupStatusLabel(g_candidate.status),
+                      TimeToString(latestClosed.time, TIME_DATE | TIME_SECONDS),
+                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
+                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
+                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
+                      DoubleToString(g_candidate.entryPrice, _Digits),
+                      DoubleToString(g_candidate.stopPrice, _Digits),
+                      DoubleToString(g_candidate.targetPrice, _Digits),
+                      DoubleToString(g_candidate.riskReward, 4),
+                      g_candidate.qualityScore,
+                      "1.30", parameterVersion);
+           }
         }
      }
 
