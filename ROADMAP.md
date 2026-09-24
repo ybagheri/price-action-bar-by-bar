@@ -23,10 +23,13 @@
 - [x] Measured Move detection مستقل — `CMeasuredMoveDetector`: پروجکشن سبک سه-swing، **جایگزین موتور FM-indicator نیست** (به یادداشت scope داخل فایل نگاه کنید؛ یکپارچه‌سازی واقعی در Phase 5)
 - [x] رفع یک باگ واقعی از Phase 1: `SPatternInfo`/`SMeasuredMoveInfo` به‌جای `barIndex` (که با اومدن بار جدید نامعتبر می‌شد) حالا `datetime` پایدار نگه می‌دارند — دقیقاً همان الگویی که `CSwingDetector` از اول درست پیاده کرده بود
 
-## Phase 4 — پورت NinjaTrader (NinjaScript / C#)
-- [ ] بازنویسی فقط لایه‌ی `ChartRenderer` معادل با Draw.* API نینجاتریدر
-- [ ] پورت کلاس‌های تحلیلی از MQL5 به C# (تغییرات نحوی جزئی، منطق یکسان)
-- [ ] هم‌راستاسازی پارامترها بین دو پلتفرم برای رفتار یکسان
+## Phase 4 — پورت NinjaTrader (NinjaScript / C#) ✅ (این نسخه)
+- [x] بازنویسی لایه‌ی `ChartRenderer` معادل با Draw.* API نینجاتریدر — `PabChartRenderer`، anchor زمانی از ابتدا (بدون باگ stale-index)
+- [x] پورت کلاس‌های تحلیلی از MQL5 به C# — `PabBarClassifier`, `PabSwingDetector`, `PabTradingRangeDetector`, `PabPatternDetector`, `PabAlwaysInTracker`, `PabMeasuredMoveDetector`، همگی 1:1 با منطق MQL5
+- [x] هم‌راستاسازی پارامترها بین دو پلتفرم — همان نام‌ها/مقادیر پیش‌فرض، فقط PascalCase
+- [x] بهبود معماری با استفاده از قابلیت‌هایی که MQL5 ندارد: `PabRingBuffer<T>` جنریک واحد (به‌جای دو پیاده‌سازی تکراری)، `ATR()` sub-indicator به‌جای handle/CopyBuffer
+- [ ] کامپایل و تست واقعی روی NinjaTrader 8 — **بر عهده‌ی شما**، چون این محیط NT8 SDK ندارد؛ به `NinjaTrader/README.md` نگاه کنید
+- [ ] رنگ‌ها به‌عنوان NinjaScriptProperty input (فعلاً فقط در کد قابل تغییرند — نیاز به boilerplate سریالایز XML برای Brush)
 
 ## Phase 5 — یکپارچه‌سازی با FM-Indicator
 - [ ] استفاده از `CTradingRangeDetector.State()` و `CAlwaysInTracker.State()` به‌عنوان context filter برای پروجکشن‌های Measured Move موجود در FM-indicator

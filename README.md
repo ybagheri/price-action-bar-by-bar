@@ -2,7 +2,7 @@
 
 یک اندیکاتور متاتریدر 5 (MQL5) با معماری کاملاً شیء‌گرا برای تحلیل **کندل به کندل** به سبک الگوریتمیک‌شده‌ی *Al Brooks* از کتاب **"Reading Price Charts Bar by Bar"**.
 
-> پلتفرم فعلی: MetaTrader 5 (MQL5). پورت NinjaTrader (NinjaScript/C#) در Phase 4 برنامه‌ریزی شده — به [ROADMAP.md](ROADMAP.md) نگاه کنید.
+> پلتفرم‌ها: MetaTrader 5 (MQL5) — نسخه‌ی اصلی و کامل‌ترین، در `MQL5/`. NinjaTrader 8 (NinjaScript/C#) — پورت معماری 1:1، در `NinjaTrader/` (به [NinjaTrader/README.md](NinjaTrader/README.md) نگاه کنید؛ کامپایل واقعی روی NT8 هنوز توسط شما تأیید نشده — به ROADMAP Phase 4 نگاه کنید).
 
 ---
 
@@ -54,6 +54,8 @@ price-action-bar-by-bar/
 2. در MetaEditor، `Indicators/PriceActionBarByBar.mq5` و `Scripts/PAB_UnitTests.mq5` را کامپایل کنید (`F7` روی هرکدام).
 3. اندیکاتور را از Navigator → Indicators روی چارت بکشید.
 4. (اختیاری ولی توصیه‌شده) اسکریپت `PAB_UnitTests` را از Navigator → Scripts روی هر چارتی دوبار-کلیک کنید — نتیجه در تب **Experts/Journal** چاپ می‌شود، بدون این‌که چیزی روی چارت رسم شود.
+
+> برای NinjaTrader 8: فایل `NinjaTrader/PriceActionBarByBar.cs` را ببینید — یک پورت کامل و مستقل با معماری یکسان. راهنمای نصب و تفاوت‌ها در [NinjaTrader/README.md](NinjaTrader/README.md).
 
 ---
 

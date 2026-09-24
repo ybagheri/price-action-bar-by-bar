@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0-nt8] - Phase 4 - 2026-09-24
+### Added
+- پورت کامل NinjaTrader 8 (NinjaScript/C#) در `NinjaTrader/PriceActionBarByBar.cs` — معماری 1:1 با نسخه‌ی MQL5: همان کلاس‌ها (`PabBarClassifier`, `PabSwingDetector`, `PabTradingRangeDetector`, `PabPatternDetector`, `PabAlwaysInTracker`, `PabMeasuredMoveDetector`, `PabChartRenderer`)
+- بهبودهای معماری خاص C#: `PabRingBuffer<T>` جنریک واحد (جایگزین دو پیاده‌سازی تکراری در MQL5)، اتصال مستقیم به `ATR()` sub-indicator بدون handle/CopyBuffer
+- `NinjaTrader/README.md`: راهنمای نصب، جدول تفاوت‌های معماری با MQL5، و محدودیت‌های شناخته‌شده‌ی این پورت
+
 ## [1.2.0] - Phase 3 - 2026-09-24
 ### Added
 - `CAlwaysInTracker`: وضعیت always-in چسبنده (Long/Short/None) که فقط با شکست ساختاری آخرین swing مخالف عوض می‌شود
