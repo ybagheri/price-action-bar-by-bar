@@ -30,6 +30,10 @@ class CBarClassifier : public IAnalyzer
 private:
    double            m_dojiBodyRatio;     // body/range below this => Doji
    double            m_clvFavorableMin;   // |CLV| threshold above which a pullback bar's close is "favorable"
+   int               m_featureLookback;
+   double            m_largeRangeMult;
+   double            m_smallRangeMult;
+   double            m_strongBodyRatio;
 
    // Phase 3: breakout / climax detection parameters.
    int               m_breakoutLookback;   // bars to look back for the "fresh extreme" check
@@ -56,6 +60,39 @@ private:
    int               m_pullbackCount;     // pullback bars seen since the last new extreme
    bool              m_havePrevPullback;  // is m_prevPullbackExtreme valid for the current sequence?
    double            m_prevPullbackExtreme; // previous pullback bar's counter-extreme (low in bull leg, high in bear leg)
+
+   ENUM_BAR_STRENGTH ClassifyStrength(const SBarInfo &bar) const
+     {
+      if(bar.barType == BAR_INSIDE || bar.barType == BAR_OUTSIDE || bar.barType == BAR_DOJI)
+         return(STRENGTH_WEAK);
+      if(bar.bodyRatio >= m_strongBodyRatio && bar.clv >= 0.25)
+         return(STRENGTH_STRONG);
+      if(bar.bodyRatio >= m_dojiBodyRatio)
+         return(STRENGTH_MODERATE);
+      return(STRENGTH_WEAK);
+     }
+
+   void UpdateSequenceAndFollowThrough(SBarInfo &bar)
+     {
+      SBarInfo previous;
+      if(!GetBar(0, previous))
+        {
+         bar.bullRun = bar.isBullish ? 1 : 0;
+         bar.bearRun = bar.isBullish ? 0 : 1;
+         return;
+        }
+
+      bar.bullRun = bar.isBullish ? previous.bullRun + 1 : 0;
+      bar.bearRun = bar.isBullish ? 0 : previous.bearRun + 1;
+
+      bool previousBull = (previous.barType == BAR_BULL_TREND);
+      bool previousBear = (previous.barType == BAR_BEAR_TREND);
+      bar.hasFollowThrough = (previousBull && bar.barType == BAR_BULL_TREND && bar.close > previous.close) ||
+                             (previousBear && bar.barType == BAR_BEAR_TREND && bar.close < previous.close);
+      bar.failedFollowThrough = (previousBull && bar.barType != BAR_BULL_TREND) ||
+                                (previousBear && bar.barType != BAR_BEAR_TREND);
+      bar.isReversalBar = (previousBull && bar.clv <= -0.25) || (previousBear && bar.clv >= 0.25);
+     }
 
    //--- Phase 3: does this trend bar also make a fresh N-bar extreme, -----
    //    closing strongly in its favor? That combination is Brooks' basic
@@ -257,11 +294,17 @@ public:
                                      const double clvFavorableMin = 0.15,
                                      const int breakoutLookback = 10, const double breakoutClvMin = 0.5,
                                      const int climaxLookback = 20, const double climaxRangeMult = 2.0,
-                                     const double climaxBodyRatioMax = 0.35)
+                                     const double climaxBodyRatioMax = 0.35,
+                                     const int featureLookback = 20, const double largeRangeMult = 1.5,
+                                     const double smallRangeMult = 0.7, const double strongBodyRatio = 0.6)
      {
       m_dojiBodyRatio   = dojiBodyRatio;
       m_capacity        = MathMax(10, maxStored);
       m_clvFavorableMin = clvFavorableMin;
+      m_featureLookback = MathMax(2, featureLookback);
+      m_largeRangeMult = largeRangeMult;
+      m_smallRangeMult = smallRangeMult;
+      m_strongBodyRatio = strongBodyRatio;
       m_breakoutLookback   = MathMax(1, breakoutLookback);
       m_breakoutClvMin     = breakoutClvMin;
       m_climaxLookback     = MathMax(2, climaxLookback);
@@ -307,13 +350,23 @@ public:
       bar.bodySize  = CPabUtils::BodySize(bar.open, bar.close);
       bar.range     = CPabUtils::BarRange(bar.high, bar.low);
       bar.bodyRatio = CPabUtils::BodyRatio(bar.open, bar.high, bar.low, bar.close);
+      bar.upperWick = bar.high - MathMax(bar.open, bar.close);
+      bar.lowerWick = MathMin(bar.open, bar.close) - bar.low;
       bar.clv       = CPabUtils::CloseLocationValue(bar.high, bar.low, bar.close);
       bar.isBullish = (bar.close > bar.open);
 
       bool havePrev = (index + 1 < rates_total);
       double prevH = havePrev ? high[index + 1] : 0.0;
       double prevL = havePrev ? low[index + 1]  : 0.0;
+      bar.overlapPrev = havePrev ? CPabUtils::RangeOverlap(bar.high, bar.low, prevH, prevL) : 0.0;
+
+      double averageRange = CPabUtils::AverageRange(high, low, index + 1, m_featureLookback);
+      bar.isLargeRange = averageRange > 0.0 && bar.range >= averageRange * m_largeRangeMult;
+      bar.isSmallRange = averageRange > 0.0 && bar.range <= averageRange * m_smallRangeMult;
+
       bar.barType = ClassifyType(bar.open, bar.high, bar.low, bar.close, prevH, prevL, havePrev);
+      bar.strength = ClassifyStrength(bar);
+      UpdateSequenceAndFollowThrough(bar);
 
       bar.isBreakoutBar = IsBreakoutBar(bar, index, high, low, rates_total);
       bar.isClimax      = IsClimaxBar(bar, index, high, low, rates_total);

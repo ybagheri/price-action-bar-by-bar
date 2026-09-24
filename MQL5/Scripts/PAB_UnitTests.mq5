@@ -75,13 +75,13 @@ void TestBarClassification()
 
    // Oldest-first design values (index 0 = oldest bar in this array).
    double o[] = {1.1000, 1.1010, 1.1015, 1.1013, 1.0995};
-   double h[] = {1.1012, 1.1030, 1.1017, 1.1020, 1.1000};
-   double l[] = {1.0998, 1.1008, 1.1005, 1.1010, 1.0980};
+   double h[] = {1.1012, 1.1030, 1.1017, 1.1016, 1.1000};
+   double l[] = {1.0998, 1.1008, 1.1005, 1.1006, 1.0980};
    double c[] = {1.1010, 1.1012, 1.1006, 1.1014, 1.0985};
    // bar0: bull trend bar (close near high)
    // bar1: bull trend bar, sets a new high
    // bar2: doji-ish (small body vs range)
-   // bar3: inside bar (high<=bar2 high, low>=bar2 low) -> 1.1020>1.1017 so NOT inside; adjust below instead
+   // bar3: inside bar
    // bar4: bear trend bar, breaks lower
 
    datetime time[]; double open[], high[], low[], close[];
@@ -98,7 +98,13 @@ void TestBarClassification()
 
    SBarInfo secondNewest;
    bc.GetBar(1, secondNewest); // source index 3
+   Check(secondNewest.barType == BAR_INSIDE, "Synthetic inside bar is classified correctly");
    Check(secondNewest.range > 0.0, "Bar has non-zero range");
+   Check(newest.upperWick >= 0.0 && newest.lowerWick >= 0.0, "Upper and lower wick geometry is non-negative");
+   Check(newest.overlapPrev >= 0.0 && newest.overlapPrev <= 1.0, "Previous-bar overlap is normalized to 0..1");
+   Check(newest.strength == STRENGTH_WEAK || newest.strength == STRENGTH_MODERATE || newest.strength == STRENGTH_STRONG,
+         "Bar strength is assigned a defined classification");
+   Check(newest.bearRun == 1, "Consecutive bear run is tracked");
 
    Check(bc.Count() == n, "Classifier stored all " + IntegerToString(n) + " bars");
   }

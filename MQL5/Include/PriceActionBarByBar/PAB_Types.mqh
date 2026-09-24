@@ -49,6 +49,13 @@ enum ENUM_SIGNAL_QUALITY
    QUALITY_STRONG
   };
 
+enum ENUM_BAR_STRENGTH
+  {
+   STRENGTH_WEAK,
+   STRENGTH_MODERATE,
+   STRENGTH_STRONG
+  };
+
 // One fully-analyzed bar. This is the atomic unit every higher-level
 // module (swings, trading range, patterns) consumes.
 struct SBarInfo
@@ -58,9 +65,20 @@ struct SBarInfo
    double            bodySize;         // |close-open|
    double            range;            // high-low
    double            bodyRatio;        // bodySize / range, 0 when range==0
+   double            upperWick;
+   double            lowerWick;
    double            clv;              // Close Location Value: -1 (close=low) .. +1 (close=high)
+   double            overlapPrev;
+   bool              isLargeRange;
+   bool              isSmallRange;
+   int               bullRun;
+   int               bearRun;
+   bool              hasFollowThrough;
+   bool              failedFollowThrough;
+   bool              isReversalBar;
    bool              isBullish;        // close > open
    ENUM_BAR_TYPE     barType;
+   ENUM_BAR_STRENGTH strength;
    ENUM_PULLBACK_TYPE pullbackType;
    int               pullbackIndex;    // 1,2,3... within current sequence, 0 if PB_NONE
    ENUM_SIGNAL_QUALITY signalQuality;  // Phase 2: objective quality score for pullback bars
@@ -70,9 +88,13 @@ struct SBarInfo
    void Clear()
      {
       time = 0; open = high = low = close = 0.0;
-      bodySize = range = bodyRatio = clv = 0.0;
-      isBullish = false;
-      barType = BAR_DOJI;
+       bodySize = range = bodyRatio = upperWick = lowerWick = clv = overlapPrev = 0.0;
+       isLargeRange = isSmallRange = false;
+       bullRun = bearRun = 0;
+       hasFollowThrough = failedFollowThrough = isReversalBar = false;
+       isBullish = false;
+       barType = BAR_DOJI;
+       strength = STRENGTH_WEAK;
       pullbackType = PB_NONE;
       pullbackIndex = 0;
       signalQuality = QUALITY_NA;

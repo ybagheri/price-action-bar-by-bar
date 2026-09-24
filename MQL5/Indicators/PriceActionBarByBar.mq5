@@ -44,6 +44,10 @@
 input group "=== Bar Classification ==="
 input double InpDojiBodyRatio      = 0.30;   // Body/Range ratio below which a bar is a Doji
 input double InpClvFavorableMin    = 0.15;   // Min |Close Location Value| for a pullback bar to score a quality point
+input int    InpFeatureLookback    = 20;
+input double InpLargeRangeMult     = 1.50;
+input double InpSmallRangeMult     = 0.70;
+input double InpStrongBodyRatio    = 0.60;
 
 input group "=== Swing Detection ==="
 input int    InpFractalLegs        = 2;      // Bars required on each side of a swing (2 = 5-bar fractal)
@@ -105,8 +109,12 @@ double              g_atrBuf[];                          // scratch buffer, refi
 
 bool ValidateInputs()
   {
-   if(InpDojiBodyRatio <= 0.0 || InpDojiBodyRatio > 1.0 ||
+   if(      InpDojiBodyRatio <= 0.0 || InpDojiBodyRatio > 1.0 ||
       InpClvFavorableMin < 0.0 || InpClvFavorableMin > 1.0 ||
+      InpFeatureLookback < 2 || InpFeatureLookback > 500 ||
+      InpLargeRangeMult <= 0.0 || InpLargeRangeMult < InpSmallRangeMult ||
+      InpSmallRangeMult <= 0.0 || InpSmallRangeMult > 1.0 ||
+      InpStrongBodyRatio <= 0.0 || InpStrongBodyRatio > 1.0 ||
       InpFractalLegs < 1 || InpFractalLegs > 50 ||
       InpRegimeLookback < 5 || InpRegimeLookback > 500 ||
       InpOverlapThreshold < 0.0 || InpOverlapThreshold > 1.0 ||
@@ -141,8 +149,9 @@ int OnInit()
    PlotIndexSetInteger(0, PLOT_DRAW_TYPE, DRAW_NONE);
 
    g_classifier = new CBarClassifier(InpDojiBodyRatio, 2000, InpClvFavorableMin,
-                                      InpBreakoutLookback, InpBreakoutClvMin,
-                                      InpClimaxLookback, InpClimaxRangeMult, InpClimaxBodyRatioMax);
+                                       InpBreakoutLookback, InpBreakoutClvMin,
+                                       InpClimaxLookback, InpClimaxRangeMult, InpClimaxBodyRatioMax,
+                                       InpFeatureLookback, InpLargeRangeMult, InpSmallRangeMult, InpStrongBodyRatio);
    g_swings     = new CSwingDetector(InpFractalLegs);
    g_range      = new CTradingRangeDetector(InpRegimeLookback, InpOverlapThreshold, InpDisplaceThreshold);
    g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin);
