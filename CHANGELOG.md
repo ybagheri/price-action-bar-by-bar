@@ -1,43 +1,38 @@
-# Changelog
+# Unreleased - 2026-09-24
 
-## [1.0.0-nt8] - Phase 4 - 2026-09-24
 ### Added
-- پورت کامل NinjaTrader 8 (NinjaScript/C#) در `NinjaTrader/PriceActionBarByBar.cs` — معماری 1:1 با نسخه‌ی MQL5: همان کلاس‌ها (`PabBarClassifier`, `PabSwingDetector`, `PabTradingRangeDetector`, `PabPatternDetector`, `PabAlwaysInTracker`, `PabMeasuredMoveDetector`, `PabChartRenderer`)
-- بهبودهای معماری خاص C#: `PabRingBuffer<T>` جنریک واحد (جایگزین دو پیاده‌سازی تکراری در MQL5)، اتصال مستقیم به `ATR()` sub-indicator بدون handle/CopyBuffer
-- `NinjaTrader/README.md`: راهنمای نصب، جدول تفاوت‌های معماری با MQL5، و محدودیت‌های شناخته‌شده‌ی این پورت
 
-## [1.2.0] - Phase 3 - 2026-09-24
-### Added
-- `CAlwaysInTracker`: وضعیت always-in چسبنده (Long/Short/None) که فقط با شکست ساختاری آخرین swing مخالف عوض می‌شود
-- `CBarClassifier`: فیلدهای جدید `isBreakoutBar` و `isClimax` روی هر بار، با پارامترهای قابل‌تنظیم (`InpBreakoutLookback`, `InpBreakoutClvMin`, `InpClimaxLookback`, `InpClimaxRangeMult`, `InpClimaxBodyRatioMax`)
-- `CMeasuredMoveDetector`: پروجکشن سبک سه-swing، مستقل از FM-indicator (نگاه کنید به SCOPE NOTE داخل فایل)
-- نشانگرهای جدید روی چارت: مثلث زرد برای breakout bar، "X" قرمز برای climax bar، خط نقطه‌چین آبی‌روشن برای هدف Measured Move
-- وضعیت Always-In به پنل بالا-چپ اضافه شد
-- ۳ گروه تست جدید در `PAB_UnitTests.mq5`: Breakout/Climax، Always-In، Measured Move
+- Closed-bar-only MQL5 processing with timestamp-idempotent analyzers.
+- Bar wick, overlap, range, strength, run, reversal, and follow-through features.
+- Micro/medium context snapshot with pressure, levels, and failed-breakout heuristics.
+- Composed setup engine with NO TRADE, invalidation, target, reward/risk, and evidence scores.
+- Setup arrows, trade levels, explanation panel, and optional debug score details.
+- Opt-in sandboxed CSV event export with engine and parameter versions.
+- Python event timing validation and target/invalidation/ambiguity/MFE/MAE analysis.
+- Repository audit, architecture proposal, and English maintainer documentation.
 
 ### Fixed
-- باگ واقعی از Phase 1: `SPatternInfo` و `SMeasuredMoveInfo` به‌جای `barIndex` (که با اومدن هر بار جدید معنایش عوض می‌شد و رندر را روی بار اشتباه می‌فرستاد) حالا `datetime` پایدار ذخیره می‌کنند — همان الگوی درستی که `CSwingDetector` از ابتدا استفاده می‌کرد
 
-## [1.1.0] - Phase 2 - 2026-09-23
-### Added
-- امتیاز کیفیت سیگنال برای بارهای پول‌بک (`ENUM_SIGNAL_QUALITY`): بر اساس Close Location Value و کم‌عمق‌تر بودن نسبت به پول‌بک قبلی در همان دنباله؛ روی چارت با `*` و اندازه‌ی فونت نمایش داده می‌شود
-- اتصال ATR واقعی MT5 (`iATR`) به `CTradingRangeDetector` از طریق تزریق وابستگی (`SetATRSeries`)، با ورودی جدید `InpUseRealATR` و `InpATRPeriod`
-- اسکریپت unit-test مستقل و بدون-چارت: `MQL5/Scripts/PAB_UnitTests.mq5` (۵ گروه تست: طبقه‌بندی بار، شمارش پول‌بک، swing، رنج، الگو)
-- ورودی جدید `InpClvFavorableMin` برای تنظیم آستانه‌ی کیفیت سیگنال
+- MQL5 no-longer replays already processed bars on unchanged ticks.
+- Forming bar index 0 is no longer used for confirmed decisions.
+- ATR history is not copied on unchanged ticks.
+- Transition and trend states clear stale range rectangles.
+- Dynamic pattern, range, measured-move, and panel objects are reconciled.
+- Indicator instances use unique chart-object namespaces.
+- Relative indicator headers are compiled from the repository tree.
+- MQL5 test success no longer writes a chart comment.
+- Intended inside-bar test fixture now is an inside bar.
 
-### Changed
-- ساختار ریپو به ساختار واقعی MT5 data-folder بازآرایی شد (`MQL5/Indicators`, `MQL5/Include/PriceActionBarByBar`, `MQL5/Scripts`)
-- `CBarClassifier` و `CSwingDetector`: ring buffer از شیفت حافظه‌ی O(n) به circular buffer با push در O(1) تبدیل شد
-- `SBarInfo` فیلد جدید `clv` (Close Location Value) و `signalQuality` گرفت
+### Validation
 
-## [1.0.0] - Phase 1 - 2026-09-23
-### Added
-- ساختار پروژه‌ی OOP کامل: `IAnalyzer` interface + 5 کلاس اصلی (`CBarClassifier`, `CSwingDetector`, `CTradingRangeDetector`, `CPatternDetector`, `CChartRenderer`)
-- طبقه‌بندی بار به سبک بروکس: Trend Bar (Bull/Bear) / Doji / Inside / Outside
-- شماره‌گذاری پول‌بک H1/H2/H3+ و L1/L2/L3+ با state machine مستقل leg-tracking
-- تشخیص swing high/low با فراکتال N-باری قابل‌تنظیم
-- تشخیص رژیم بازار (Trading Range / Bull Trend / Bear Trend / Transition) بر اساس overlap و displacement
-- تشخیص الگو: Double Top/Bottom، Triangle، Wedge سه‌فشاره (Rising/Falling)، ساختار HH/HL و LH/LL
-- لایه‌ی رندرینگ مستقل با پنل وضعیت بازار، لیبل پول‌بک، مارکر swing، مستطیل رنج و annotation الگو
-- README کامل با دیاگرام کلاس‌ها (Mermaid)، راهنمای نصب، پارامترها و راهنمای توسعه
-- ROADMAP شش‌فازی شامل پورت NinjaTrader و یکپارچه‌سازی با FM-Indicator
+- MQL5 indicator: 0 compile errors, 0 warnings.
+- MQL5 harness: 0 compile errors, 0 warnings; runtime execution remains manual.
+- Python research suite: 6 tests passed.
+- Python `compileall`: passed.
+
+### Known gaps
+
+- MQL5 harness has not been executed automatically in MT5 yet.
+- No Strategy Tester or broad historical backtest has been run.
+- Multi-timeframe and session context are not implemented.
+- NinjaTrader has not been recompiled or brought to feature parity.
