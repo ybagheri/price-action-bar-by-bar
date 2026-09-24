@@ -206,3 +206,71 @@ struct SMeasuredMoveInfo
    double            targetPrice;      // leg1Start/End size projected from pivotPrice
    datetime          pivotTime;        // stable across calls, unlike a cached bar index
   };
+
+struct SContextInfo
+  {
+   bool              valid;
+   ENUM_MARKET_STATE microState;
+   ENUM_MARKET_STATE mediumState;
+   double            overlap;
+   double            displacement;
+   double            bullPressure;
+   double            bearPressure;
+   bool              failedBullBreakout;
+   bool              failedBearBreakout;
+   bool              nearSupport;
+   bool              nearResistance;
+   double            support;
+   double            resistance;
+   double            averageRange;
+  };
+
+enum ENUM_SETUP_DIRECTION
+  {
+   SETUP_NONE,
+   SETUP_LONG,
+   SETUP_SHORT
+  };
+
+enum ENUM_SETUP_TYPE
+  {
+   SETUP_NO_TRADE,
+   SETUP_TREND_PULLBACK,
+   SETUP_SECOND_ENTRY,
+   SETUP_RANGE_REVERSAL,
+   SETUP_FAILED_BREAKOUT,
+   SETUP_BREAKOUT_FOLLOW_THROUGH,
+   SETUP_WEDGE_REVERSAL
+  };
+
+enum ENUM_SETUP_STATUS
+  {
+   STATUS_NO_TRADE,
+   STATUS_WEAK,
+   STATUS_POSSIBLE,
+   STATUS_PROBABLE,
+   STATUS_CONFIRMED
+  };
+
+struct SSetupCandidate
+  {
+   bool              active;
+   ENUM_SETUP_DIRECTION direction;
+   ENUM_SETUP_TYPE   type;
+   ENUM_SETUP_STATUS status;
+   datetime          barTime;
+   double            entryPrice;
+   double            stopPrice;
+   double            targetPrice;
+   double            riskReward;
+   int               contextScore;
+   int               signalScore;
+   int               locationScore;
+   int               followThroughScore;
+   int               roomScore;
+   int               opposingPressureScore;
+   int               qualityScore;
+   string            reasons[8];
+   string            risks[6];
+   string            noTradeReason;
+  };

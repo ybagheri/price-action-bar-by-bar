@@ -36,6 +36,8 @@
 #include "../Include/PriceActionBarByBar/PatternDetector.mqh"
 #include "../Include/PriceActionBarByBar/AlwaysInTracker.mqh"
 #include "../Include/PriceActionBarByBar/MeasuredMoveDetector.mqh"
+#include "../Include/PriceActionBarByBar/ContextAnalyzer.mqh"
+#include "../Include/PriceActionBarByBar/DecisionEngine.mqh"
 #include "../Include/PriceActionBarByBar/ChartRenderer.mqh"
 
 //====================================================================
@@ -63,6 +65,10 @@ input group "=== Pattern Detection ==="
 input double InpSwingSimilarityPct = 0.15;   // % tolerance for "equal" swing highs/lows (double top/bottom)
 input double InpConvergenceMin     = 0.15;   // Minimum slope convergence to flag triangle/wedge
 
+input group "=== Decision Support ==="
+input int    InpMinimumQuality     = 55;
+input double InpMinimumRiskReward  = 1.50;
+
 input group "=== Breakout / Climax (Phase 3) ==="
 input int    InpBreakoutLookback   = 10;     // Bars to check for a fresh extreme to qualify as a breakout bar
 input double InpBreakoutClvMin     = 0.50;   // Min |CLV| for a breakout bar's close
@@ -78,6 +84,9 @@ input bool   InpShowPatterns       = true;   // Show detected pattern annotation
 input bool   InpShowBreakouts      = true;   // Show breakout-bar markers
 input bool   InpShowClimax         = true;   // Show climax/exhaustion-bar markers
 input bool   InpShowMeasuredMove   = true;   // Show the measured-move target line
+input bool   InpShowSetups          = true;
+input bool   InpShowExplanations    = true;
+input bool   InpShowDebug           = false;
 input bool   InpShowStatePanel     = true;   // Show top-left market-state panel
 input color  InpColorBull          = clrDodgerBlue;
 input color  InpColorBear          = clrCrimson;
@@ -101,7 +110,11 @@ CTradingRangeDetector *g_range      = NULL;
 CPatternDetector    *g_patterns     = NULL;
 CAlwaysInTracker    *g_alwaysIn     = NULL;
 CMeasuredMoveDetector *g_measuredMove = NULL;
+CContextAnalyzer     *g_context      = NULL;
+CDecisionEngine      *g_decision     = NULL;
 CChartRenderer      *g_renderer     = NULL;
+SContextInfo          g_contextInfo;
+SSetupCandidate      g_candidate;
 string              g_objectPrefix = "";
 
 int                 g_atrHandle     = INVALID_HANDLE;   // Phase 2: real ATR, owned by the orchestrator
@@ -122,6 +135,8 @@ bool ValidateInputs()
       InpATRPeriod < 1 || InpATRPeriod > 1000 ||
       InpSwingSimilarityPct < 0.0 || InpSwingSimilarityPct > 100.0 ||
       InpConvergenceMin <= 0.0 ||
+      InpMinimumQuality < 0 || InpMinimumQuality > 100 ||
+      InpMinimumRiskReward < 0.1 ||
       InpBreakoutLookback < 1 || InpBreakoutLookback > 500 ||
       InpBreakoutClvMin < 0.0 || InpBreakoutClvMin > 1.0 ||
       InpClimaxLookback < 2 || InpClimaxLookback > 500 ||
@@ -157,10 +172,12 @@ int OnInit()
    g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin);
    g_alwaysIn   = new CAlwaysInTracker();
    g_measuredMove = new CMeasuredMoveDetector();
+   g_context    = new CContextAnalyzer();
+   g_decision   = new CDecisionEngine(InpMinimumQuality, InpMinimumRiskReward);
    g_renderer   = new CChartRenderer(ChartID(), g_objectPrefix);
 
    if(g_classifier == NULL || g_swings == NULL || g_range == NULL || g_patterns == NULL ||
-      g_alwaysIn == NULL || g_measuredMove == NULL || g_renderer == NULL)
+      g_alwaysIn == NULL || g_measuredMove == NULL || g_context == NULL || g_decision == NULL || g_renderer == NULL)
      {
       Print("PriceActionBarByBar: analyzer allocation failed");
       return(INIT_FAILED);
@@ -204,6 +221,8 @@ void OnDeinit(const int reason)
    if(g_patterns   != NULL) { delete g_patterns;   g_patterns   = NULL; }
    if(g_alwaysIn   != NULL) { delete g_alwaysIn;   g_alwaysIn   = NULL; }
    if(g_measuredMove != NULL) { delete g_measuredMove; g_measuredMove = NULL; }
+   if(g_context    != NULL) { delete g_context;    g_context    = NULL; }
+   if(g_decision   != NULL) { delete g_decision;   g_decision   = NULL; }
    if(g_renderer   != NULL) { delete g_renderer;   g_renderer   = NULL; }
   }
 
@@ -266,6 +285,7 @@ int OnCalculate(const int rates_total,
       g_patterns.Reset();
       g_alwaysIn.Reset();
       g_measuredMove.Reset();
+      g_contextInfo.valid = false;
       g_renderer.ClearAll();
       start = rates_total - 1;
      }
@@ -315,6 +335,22 @@ int OnCalculate(const int rates_total,
       bool haveLow  = g_swings.LatestOfType(SWING_LOW, latestLow);
       g_alwaysIn.Evaluate(close[1], haveHigh, haveHigh ? latestHigh.price : 0.0,
                            haveLow, haveLow ? latestLow.price : 0.0, time[1]);
+
+      int recentCount = MathMin(g_classifier.Count(), 10);
+      SBarInfo recent[];
+      ArrayResize(recent, recentCount);
+      for(int i = 0; i < recentCount; i++)
+         g_classifier.GetBar(i, recent[i]);
+      g_context.Analyze(recent, recentCount, swingArr, swingCount,
+                        g_range.State(), g_alwaysIn.State(), g_contextInfo);
+
+      SBarInfo latestClosed;
+      if(g_classifier.GetBar(0, latestClosed))
+        {
+         SPatternInfo currentPattern = g_patterns.LastPattern();
+         SMeasuredMoveInfo currentMeasured = g_measuredMove.Current();
+         g_decision.Analyze(latestClosed, g_contextInfo, currentPattern, currentMeasured, g_candidate);
+        }
      }
 
    int renderCount = MathMin(g_classifier.Count(), start + 1);
@@ -354,10 +390,13 @@ int OnCalculate(const int rates_total,
    else
       g_renderer.HideMeasuredMove();
 
+   g_renderer.DrawSetup(g_candidate, InpShowSetups, InpShowExplanations, InpShowDebug);
+
    if(InpShowStatePanel)
      {
-      string panel = StringFormat("PriceActionBarByBar\nState: %s | Always-In: %s\nSwings: %d",
-                                   StateLabel(g_range.State()), AlwaysInLabel(g_alwaysIn.State()), swingCount);
+      string panel = StringFormat("PriceActionBarByBar\nMedium: %s | Micro: %s\nAlways-In: %s | Swings: %d",
+                                   StateLabel(g_range.State()), StateLabel(g_contextInfo.microState),
+                                   AlwaysInLabel(g_alwaysIn.State()), swingCount);
       g_renderer.DrawStatePanel(panel);
      }
    else

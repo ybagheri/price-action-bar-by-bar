@@ -22,6 +22,8 @@
 #include "../Include/PriceActionBarByBar/PatternDetector.mqh"
 #include "../Include/PriceActionBarByBar/AlwaysInTracker.mqh"
 #include "../Include/PriceActionBarByBar/MeasuredMoveDetector.mqh"
+#include "../Include/PriceActionBarByBar/ContextAnalyzer.mqh"
+#include "../Include/PriceActionBarByBar/DecisionEngine.mqh"
 
 int g_pass = 0;
 int g_fail = 0;
@@ -392,6 +394,71 @@ void TestRangeTransitionClearsRange()
    Check(!trd.GetRange(ri), "Transition state clears stale trading-range data");
   }
 
+void TestContextAndDecision()
+  {
+   Print("--- TestContextAndDecision ---");
+
+   SBarInfo bars[3];
+   for(int i = 0; i < 3; i++)
+     {
+      bars[i].Clear();
+      bars[i].time = D'2026.01.01 03:00' + i * 3600;
+      bars[i].open = 1.1000 + i * 0.0010;
+      bars[i].high = bars[i].open + 0.0010;
+      bars[i].low = bars[i].open - 0.0002;
+      bars[i].close = bars[i].open + 0.0008;
+      bars[i].range = 0.0012;
+      bars[i].bodyRatio = 0.66;
+      bars[i].clv = 0.83;
+      bars[i].isBullish = true;
+      bars[i].barType = BAR_BULL_TREND;
+      bars[i].strength = STRENGTH_STRONG;
+      bars[i].overlapPrev = 0.25;
+     }
+
+   SContextInfo context;
+   SSwingPoint swings[1];
+   CContextAnalyzer analyzer;
+   analyzer.Analyze(bars, 3, swings, 0, STATE_BULL_TREND, ALWAYS_IN_LONG, context);
+   Check(context.valid, "Context analyzer produces a valid closed-bar snapshot");
+   Check(context.microState == STATE_BULL_TREND, "Bullish micro context is classified from displacement");
+   Check(context.bullPressure > context.bearPressure, "Bull pressure exceeds bear pressure in bull context");
+
+   bars[0].pullbackType = PB_H2;
+   bars[0].signalQuality = QUALITY_STRONG;
+   bars[0].hasFollowThrough = true;
+   context.nearSupport = true;
+   context.support = bars[0].low - 0.0002;
+   context.resistance = 0.0;
+
+   SPatternInfo pattern;
+   pattern.type = PATTERN_NONE;
+   SMeasuredMoveInfo measuredMove;
+   measuredMove.active = false;
+   SSetupCandidate candidate;
+   CDecisionEngine engine(55, 1.5);
+   engine.Analyze(bars[0], context, pattern, measuredMove, candidate);
+   Check(candidate.direction == SETUP_LONG, "Bullish H2 context produces a long candidate");
+   Check(candidate.type == SETUP_SECOND_ENTRY, "H2 is classified as a second-entry setup");
+   Check(candidate.stopPrice < candidate.entryPrice && candidate.targetPrice > candidate.entryPrice,
+         "Long candidate exposes logical invalidation and target levels");
+   Check(candidate.qualityScore >= 55 && candidate.status != STATUS_NO_TRADE,
+         "Strong composed context passes configured quality and risk/reward gates");
+
+   SBarInfo noTradeBar;
+   noTradeBar.Clear();
+   noTradeBar.time = bars[0].time + 3600;
+   noTradeBar.open = 1.1000;
+   noTradeBar.high = 1.1005;
+   noTradeBar.low = 1.0995;
+   noTradeBar.close = 1.1000;
+   noTradeBar.range = 0.0010;
+   noTradeBar.barType = BAR_DOJI;
+   noTradeBar.pullbackType = PB_NONE;
+   engine.Analyze(noTradeBar, context, pattern, measuredMove, candidate);
+   Check(candidate.status == STATUS_NO_TRADE, "Isolated doji without composed setup returns NO TRADE");
+  }
+
 //+------------------------------------------------------------------+
 //| Script entry point                                                |
 //+------------------------------------------------------------------+
@@ -413,6 +480,7 @@ void OnStart()
    TestMeasuredMove();
    TestIdempotentUpdates();
    TestRangeTransitionClearsRange();
+   TestContextAndDecision();
 
    Print("------------------------------------------------------");
    PrintFormat(" RESULT: %d passed, %d failed", g_pass, g_fail);

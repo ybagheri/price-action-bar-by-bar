@@ -45,6 +45,22 @@ private:
          ObjectDelete(m_chartId, name);
      }
 
+   string DirectionLabel(const ENUM_SETUP_DIRECTION direction) const
+     {
+      if(direction == SETUP_LONG) return("Potential LONG");
+      if(direction == SETUP_SHORT) return("Potential SHORT");
+      return("NO TRADE");
+     }
+
+   string StatusLabel(const ENUM_SETUP_STATUS status) const
+     {
+      if(status == STATUS_CONFIRMED) return("Confirmed evidence");
+      if(status == STATUS_PROBABLE) return("Probable");
+      if(status == STATUS_POSSIBLE) return("Possible");
+      if(status == STATUS_WEAK) return("Weak");
+      return("No trade");
+     }
+
 public:
                      CChartRenderer(const long chartId = 0, const string prefix = "PAB")
      {
@@ -276,6 +292,102 @@ public:
         }
       ObjectSetString(m_chartId, name, OBJPROP_TEXT, text);
       ObjectSetInteger(m_chartId, name, OBJPROP_COLOR, clrWhite);
+     }
+
+   void DrawSetup(const SSetupCandidate &candidate, const bool showSetups,
+                  const bool showExplanations, const bool showDebug)
+     {
+      string markerName = ObjName("SETUP", "marker");
+      string entryName = ObjName("SETUP", "entry");
+      string stopName = ObjName("SETUP", "stop");
+      string targetName = ObjName("SETUP", "target");
+      string explanationName = ObjName("SETUP", "explanation");
+
+      if(!showSetups)
+        {
+         DeleteObject(markerName);
+         DeleteObject(entryName);
+         DeleteObject(stopName);
+         DeleteObject(targetName);
+        }
+      if(!showExplanations)
+         DeleteObject(explanationName);
+
+      if(candidate.barTime == 0)
+         return;
+
+      if(!showSetups)
+         return;
+
+      bool isLong = candidate.direction == SETUP_LONG;
+      color setupColor = isLong ? m_colorBull : candidate.direction == SETUP_SHORT ? m_colorBear : clrSilver;
+      datetime endTime = candidate.barTime + PeriodSeconds(_Period) * 3;
+
+      if(ObjectFind(m_chartId, markerName) < 0)
+         ObjectCreate(m_chartId, markerName, OBJ_ARROW, 0, candidate.barTime, candidate.entryPrice);
+      ObjectMove(m_chartId, markerName, 0, candidate.barTime, candidate.entryPrice);
+      ObjectSetInteger(m_chartId, markerName, OBJPROP_ARROWCODE, candidate.direction == SETUP_NONE ? 171 : isLong ? 233 : 234);
+      ObjectSetInteger(m_chartId, markerName, OBJPROP_COLOR, setupColor);
+      ObjectSetInteger(m_chartId, markerName, OBJPROP_WIDTH, 2);
+
+      if(candidate.direction == SETUP_NONE)
+        {
+         DeleteObject(entryName);
+         DeleteObject(stopName);
+         DeleteObject(targetName);
+        }
+      else
+        {
+         if(ObjectFind(m_chartId, entryName) < 0)
+            ObjectCreate(m_chartId, entryName, OBJ_TREND, 0, candidate.barTime, candidate.entryPrice, endTime, candidate.entryPrice);
+         ObjectMove(m_chartId, entryName, 0, candidate.barTime, candidate.entryPrice);
+         ObjectMove(m_chartId, entryName, 1, endTime, candidate.entryPrice);
+         ObjectSetInteger(m_chartId, entryName, OBJPROP_COLOR, clrWhite);
+         ObjectSetInteger(m_chartId, entryName, OBJPROP_STYLE, STYLE_SOLID);
+
+         if(ObjectFind(m_chartId, stopName) < 0)
+            ObjectCreate(m_chartId, stopName, OBJ_TREND, 0, candidate.barTime, candidate.stopPrice, endTime, candidate.stopPrice);
+         ObjectMove(m_chartId, stopName, 0, candidate.barTime, candidate.stopPrice);
+         ObjectMove(m_chartId, stopName, 1, endTime, candidate.stopPrice);
+         ObjectSetInteger(m_chartId, stopName, OBJPROP_COLOR, m_colorClimax);
+         ObjectSetInteger(m_chartId, stopName, OBJPROP_STYLE, STYLE_DOT);
+
+         if(ObjectFind(m_chartId, targetName) < 0)
+            ObjectCreate(m_chartId, targetName, OBJ_TREND, 0, candidate.barTime, candidate.targetPrice, endTime, candidate.targetPrice);
+         ObjectMove(m_chartId, targetName, 0, candidate.barTime, candidate.targetPrice);
+         ObjectMove(m_chartId, targetName, 1, endTime, candidate.targetPrice);
+         ObjectSetInteger(m_chartId, targetName, OBJPROP_COLOR, m_colorMeasuredMove);
+         ObjectSetInteger(m_chartId, targetName, OBJPROP_STYLE, STYLE_DASH);
+        }
+
+      if(showExplanations)
+        {
+         string text = DirectionLabel(candidate.direction) + " — " + StatusLabel(candidate.status) + "\n";
+         text += "Quality: " + IntegerToString(candidate.qualityScore) + "/100 | R:R " + DoubleToString(candidate.riskReward, 2) + "\n";
+         for(int i = 0; i < 8; i++)
+            if(candidate.reasons[i] != "")
+               text += "+ " + candidate.reasons[i] + "\n";
+         for(int i = 0; i < 6; i++)
+            if(candidate.risks[i] != "")
+               text += "- " + candidate.risks[i] + "\n";
+         if(candidate.noTradeReason != "")
+            text += "Wait: " + candidate.noTradeReason + "\n";
+         if(showDebug)
+            text += StringFormat("C%d S%d L%d F%d R%d O%d", candidate.contextScore, candidate.signalScore,
+                                 candidate.locationScore, candidate.followThroughScore, candidate.roomScore,
+                                 candidate.opposingPressureScore);
+
+         if(ObjectFind(m_chartId, explanationName) < 0)
+           {
+            ObjectCreate(m_chartId, explanationName, OBJ_LABEL, 0, 0, 0);
+            ObjectSetInteger(m_chartId, explanationName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+            ObjectSetInteger(m_chartId, explanationName, OBJPROP_XDISTANCE, 10);
+            ObjectSetInteger(m_chartId, explanationName, OBJPROP_YDISTANCE, 80);
+            ObjectSetInteger(m_chartId, explanationName, OBJPROP_FONTSIZE, 8);
+           }
+         ObjectSetString(m_chartId, explanationName, OBJPROP_TEXT, text);
+         ObjectSetInteger(m_chartId, explanationName, OBJPROP_COLOR, setupColor);
+        }
      }
 
    void HideTradingRange()
