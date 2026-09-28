@@ -4,6 +4,21 @@ from typing import Literal
 
 Direction = Literal["long", "short", "none"]
 
+# Mirrors SetupTypeLabel() in MQL5/Indicators/PriceActionBarByBar.mq5.
+# Kept in sync deliberately: the research layer validates exported events,
+# it does not re-derive them.
+SETUP_TYPES = frozenset(
+    {
+        "none",
+        "trend_pullback",
+        "second_entry",
+        "range_reversal",
+        "failed_breakout",
+        "breakout_follow_through",
+        "wedge_reversal",
+    }
+)
+
 
 @dataclass(frozen=True)
 class PriceBar:
@@ -28,11 +43,14 @@ class SetupEvent:
     risk_reward: float = 0.0
     engine_version: str = ""
     parameter_version: str = ""
+    setup_type: str = "none"
 
     def __post_init__(self) -> None:
         validate_event_timing(self)
         if self.direction not in ("long", "short", "none"):
             raise ValueError("direction must be long, short, or none")
+        if self.setup_type not in SETUP_TYPES:
+            raise ValueError(f"unknown setup_type {self.setup_type!r}")
         if self.status == "no_trade":
             if self.direction != "none":
                 raise ValueError("no_trade events must use direction none")
@@ -57,10 +75,15 @@ def validate_event_timing(event: SetupEvent) -> None:
 
 
 def load_setup_events(path: str) -> list[SetupEvent]:
+    """Load and validate exported setup events from the MQL5 CSV.
+
+    ``utf-8-sig`` is used because Windows tooling frequently writes a BOM, and
+    a BOM on the first column name would otherwise hide ``event_id``.
+    """
     import csv
 
     events: list[SetupEvent] = []
-    with open(path, newline="", encoding="utf-8") as handle:
+    with open(path, newline="", encoding="utf-8-sig") as handle:
         for row in csv.DictReader(handle):
             events.append(
                 SetupEvent(
@@ -78,7 +101,31 @@ def load_setup_events(path: str) -> list[SetupEvent]:
                     risk_reward=float(row["risk_reward"]),
                     engine_version=row["engine_version"],
                     parameter_version=row["parameter_version"],
+                    setup_type=row.get("setup_type") or "none",
                 )
             )
     events.sort(key=lambda event: event.decision_time)
     return events
+
+
+def load_price_bars(path: str) -> list[PriceBar]:
+    """Load outcome-evaluation bars from a CSV with open_time, high, low columns.
+
+    The indicator does not export bars, so this reads broker or replay history
+    exported separately. Only high and low are required because outcome
+    evaluation never looks at open or close. Extra columns are ignored.
+    """
+    import csv
+
+    bars: list[PriceBar] = []
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            bars.append(
+                PriceBar(
+                    open_time=datetime.fromisoformat(row["open_time"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                )
+            )
+    bars.sort(key=lambda item: item.open_time)
+    return bars

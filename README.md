@@ -60,7 +60,7 @@ Verified in the current environment:
 - MQL5 indicator compilation: 0 errors, 0 warnings.
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
 - MQL5 regression harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5).
-- Python research tests: 6 passed.
+- Python research tests: 27 passed.
 - Python `compileall`: passed.
 
 No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
@@ -69,7 +69,13 @@ No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 
 Set `InpExportEvents=true` to create a sandboxed CSV file. Every event records bar open/close, confirmation, decision time, levels, status, score, engine version, and parameter fingerprint.
 
-Python validates `confirmed_at <= decision_time` and evaluates target, invalidation, ambiguous same-bar exits, time to exit, MFE, and MAE.
+Python validates `confirmed_at <= decision_time` and evaluates target, invalidation, ambiguous same-bar exits, time to exit, MFE, and MAE. It can group the result by setup type or engine status and print win rate and expectancy in R:
+
+```powershell
+python -m pab_research events.csv bars.csv
+```
+
+The reporting tool is tested but has not yet been run against a real export, so this project publishes no measured win rate.
 
 ## Current limitations
 
@@ -78,6 +84,7 @@ Python validates `confirmed_at <= decision_time` and evaluates target, invalidat
 - Current forming bars are intentionally excluded from decisions.
 - NinjaTrader is an unverified secondary port and is not at parity with the new MQL5 engine.
 - Indicator lifecycle, Strategy Tester runs, broker-spread modeling, and broad historical validation remain required.
+- Reported figures exclude spread, slippage, and commission.
 - No orders are placed.
 
 ## Documentation

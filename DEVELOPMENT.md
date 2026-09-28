@@ -39,7 +39,7 @@ Python must not independently redefine MT5 setups. It validates and measures exp
 - Indicator lifecycle runtime tests (duplicate ticks, history reload).
 - Stable timestamp-based pattern slope normalization.
 - Higher-timeframe and session context.
-- Event export outcome reports and aggregate statistics.
+- A real event export to point the reporting tool at.
 - NinjaTrader compilation/parity fixtures.
 
 ## MQL5 test fixtures

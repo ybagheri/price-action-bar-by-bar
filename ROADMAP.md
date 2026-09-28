@@ -11,10 +11,11 @@
 - Opt-in event export and Python outcome/MAE/MFE tooling.
 - English architecture, usage, strategy, testing, and backtesting documentation.
 - MQL5 runtime harness execution with archived evidence (41 passed, 0 failed).
+- Aggregate event reports with win rate, expectancy in R, MFE, and MAE by setup type or engine status.
 
 ## Next
 
-1. Add aggregate event reports, win/loss rates, and expectancy by setup.
+1. Run the report against a real exported event file and archive the result.
 2. Add broader historical and multi-instrument validation with walk-forward separation.
 3. Implement configurable higher-timeframe context using closed HTF bars.
 4. Add session/prior-day/overnight levels with broker-time assumptions.

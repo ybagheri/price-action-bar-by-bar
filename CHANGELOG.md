@@ -11,6 +11,11 @@
 - Python event timing validation and target/invalidation/ambiguity/MFE/MAE analysis.
 - Repository audit, architecture proposal, and English maintainer documentation.
 - Archived MQL5 harness runtime output under `research/test_artifacts`.
+- `setup_type` carried into `SetupEvent` and validated against the engine's setup list.
+- `load_price_bars` for outcome evaluation from exported bar history.
+- Aggregate reporting by setup type or engine status: counts, win rate,
+  expectancy in R, average MFE/MAE, and average bars to exit.
+- `python -m pab_research EVENTS.csv BARS.csv` report entry point.
 
 ### Fixed
 
@@ -31,11 +36,13 @@
 - MQL5 indicator: 0 compile errors, 0 warnings.
 - MQL5 harness: 0 compile errors, 0 warnings.
 - MQL5 harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5, 2026-09-28).
-- Python research suite: 6 tests passed.
+- Python research suite: 27 tests passed.
 - Python `compileall`: passed.
 
 ### Known gaps
 
+- Reporting has never been run against a real exported event file, so no
+  measured win rate or expectancy figure exists yet.
 - Indicator lifecycle (duplicate ticks, history reload) has no runtime test yet.
 - No Strategy Tester or broad historical backtest has been run.
 - Multi-timeframe and session context are not implemented.

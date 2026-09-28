@@ -26,7 +26,7 @@ Run these from `research/`.
 - MQL5 harness compile: 0 errors, 0 warnings.
 - MQL5 harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5, 2026-09-28).
   Archived at `research/test_artifacts/mql5_harness_20260928.txt`.
-- Python tests: 6 passed.
+- Python tests: 27 passed.
 - Python syntax compilation: passed.
 
 ## MQL5 harness coverage
