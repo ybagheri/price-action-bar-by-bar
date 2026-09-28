@@ -1,0 +1,63 @@
+﻿======================================================
+ PriceActionBarByBar - Unit Test Harness (Phase 2+3)
+======================================================
+Source : Alpari MT5_2, EURUSD,M5
+Run at : 2026-09-28 18:28:21
+Raw    : <terminal data>\MQL5\Logs\20260928.log
+Note   : [PASS]/[FAIL] lines are the only journal lines the harness emits.
+--- TestBarClassification ---
+  [PASS] Last bar (strong bearish close) classified as BEAR_TREND
+  [PASS] Synthetic inside bar is classified correctly
+  [PASS] Bar has non-zero range
+  [PASS] Upper and lower wick geometry is non-negative
+  [PASS] Previous-bar overlap is normalized to 0..1
+  [PASS] Bar strength is assigned a defined classification
+  [PASS] Consecutive bear run is tracked
+  [PASS] Classifier stored all 5 bars
+--- TestPullbackSequence ---
+  [PASS] Bar that sets a marginal new leg high is not a pullback bar
+  [PASS] First pullback bar after new high labeled H1
+  [PASS] Second consecutive pullback bar labeled H2
+  [PASS] H2 low is shallower (higher) than H1 low in this synthetic leg
+  [PASS] Bar that makes a fresh new high resets pullback state to NONE
+--- TestSwingDetection ---
+  [PASS] A swing high was detected in the synthetic peak
+  [PASS] Swing high price matches the synthetic peak (1.1040)
+  [PASS] A swing low was detected in the synthetic trough
+--- TestTradingRangeDetection ---
+  [PASS] Choppy overlapping series scored as STATE_TRADING_RANGE
+  [PASS] Trading range info reports active=true
+--- TestPatternDetection ---
+  [PASS] Pattern detector finds a pattern in near-equal swing highs
+  [PASS] Near-equal consecutive swing highs classified as PATTERN_DOUBLE_TOP
+--- TestBreakoutAndClimax ---
+  [PASS] Strong fresh-high bar with favorable close flagged as breakout bar
+  [PASS] Unusually large-range bar with a weak close flagged as climax/exhaustion
+--- TestAlwaysIn ---
+  [PASS] Always-In starts at NONE with no structure yet
+  [PASS] Close above the known swing high bootstraps ALWAYS_IN_LONG
+  [PASS] Close below the known swing low flips state to ALWAYS_IN_SHORT
+  [PASS] State holds ALWAYS_IN_SHORT when no structural break occurs
+--- TestMeasuredMove ---
+  [PASS] Measured move detector finds a projection from a clean 3-swing sequence
+  [PASS] Rising leg1 (low->high) projects a bullish measured move
+  [PASS] Target price equals pivot + leg1 size (1.10800)
+--- TestIdempotentUpdates ---
+  [PASS] Duplicate classifier update does not duplicate the bar
+  [PASS] Duplicate swing update does not duplicate the confirmed swing
+--- TestRangeTransitionClearsRange ---
+  [PASS] Low-displacement non-overlapping bars scored as STATE_TRANSITION
+  [PASS] Transition state clears stale trading-range data
+--- TestContextAndDecision ---
+  [PASS] Context analyzer produces a valid closed-bar snapshot
+  [PASS] Bullish micro context is classified from displacement
+  [PASS] Bull pressure exceeds bear pressure in bull context
+  [PASS] Bullish H2 context produces a long candidate
+  [PASS] H2 is classified as a second-entry setup
+  [PASS] Long candidate exposes logical invalidation and target levels
+  [PASS] Strong composed context passes configured quality and risk/reward gates
+  [PASS] Isolated doji without composed setup returns NO TRADE
+------------------------------------------------------
+ RESULT: 41 passed, 0 failed
+======================================================
+PriceActionBarByBar unit tests: all 41 passed.

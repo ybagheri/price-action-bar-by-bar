@@ -133,8 +133,13 @@ void TestPullbackSequence()
    for(int i = n - 1; i >= 0; i--)
       bc.Update(i, time, open, high, low, close, n);
 
-   // source index 3 (first pullback after the 1.1057/1.1058 high) -> series pos n-1-3 = 3
-   SBarInfo h1bar; bc.GetBar(3, h1bar);
+   // source index 3 (1.1058) still exceeds the 1.1057 high, so it resets the
+   // leg extreme and is NOT a pullback bar -> series pos n-1-3 = 3
+   SBarInfo extremeBar; bc.GetBar(3, extremeBar);
+   Check(extremeBar.pullbackType == PB_NONE, "Bar that sets a marginal new leg high is not a pullback bar");
+
+   // source index 4 (first bar that stays below the 1.1058 high) -> series pos n-1-4 = 2
+   SBarInfo h1bar; bc.GetBar(2, h1bar);
    Check(h1bar.pullbackType == PB_H1, "First pullback bar after new high labeled H1");
 
    // source index 5 (second pullback bar) -> series pos n-1-5 = 1
@@ -398,12 +403,13 @@ void TestContextAndDecision()
   {
    Print("--- TestContextAndDecision ---");
 
+   // ContextAnalyzer consumes SERIES order: index 0 is the newest closed bar.
    SBarInfo bars[3];
    for(int i = 0; i < 3; i++)
      {
       bars[i].Clear();
-      bars[i].time = D'2026.01.01 03:00' + i * 3600;
-      bars[i].open = 1.1000 + i * 0.0010;
+      bars[i].time = D'2026.01.01 05:00' - i * 3600;
+      bars[i].open = 1.1020 - i * 0.0010;
       bars[i].high = bars[i].open + 0.0010;
       bars[i].low = bars[i].open - 0.0002;
       bars[i].close = bars[i].open + 0.0008;

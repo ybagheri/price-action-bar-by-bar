@@ -10,6 +10,7 @@
 - Opt-in sandboxed CSV event export with engine and parameter versions.
 - Python event timing validation and target/invalidation/ambiguity/MFE/MAE analysis.
 - Repository audit, architecture proposal, and English maintainer documentation.
+- Archived MQL5 harness runtime output under `research/test_artifacts`.
 
 ### Fixed
 
@@ -22,17 +23,20 @@
 - Relative indicator headers are compiled from the repository tree.
 - MQL5 test success no longer writes a chart comment.
 - Intended inside-bar test fixture now is an inside bar.
+- Pullback-sequence fixture no longer expects H1 on a bar that sets a new leg high.
+- Context fixture is now built in series order (index 0 = newest closed bar).
 
 ### Validation
 
 - MQL5 indicator: 0 compile errors, 0 warnings.
-- MQL5 harness: 0 compile errors, 0 warnings; runtime execution remains manual.
+- MQL5 harness: 0 compile errors, 0 warnings.
+- MQL5 harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5, 2026-09-28).
 - Python research suite: 6 tests passed.
 - Python `compileall`: passed.
 
 ### Known gaps
 
-- MQL5 harness has not been executed automatically in MT5 yet.
+- Indicator lifecycle (duplicate ticks, history reload) has no runtime test yet.
 - No Strategy Tester or broad historical backtest has been run.
 - Multi-timeframe and session context are not implemented.
 - NinjaTrader has not been recompiled or brought to feature parity.

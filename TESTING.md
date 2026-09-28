@@ -24,9 +24,10 @@ Run these from `research/`.
 
 - MQL5 indicator compile: 0 errors, 0 warnings.
 - MQL5 harness compile: 0 errors, 0 warnings.
+- MQL5 harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5, 2026-09-28).
+  Archived at `research/test_artifacts/mql5_harness_20260928.txt`.
 - Python tests: 6 passed.
 - Python syntax compilation: passed.
-- MQL5 harness runtime: not automatically executed in this environment.
 
 ## MQL5 harness coverage
 
@@ -34,7 +35,6 @@ The synthetic script contains 11 groups covering bar classification, pullback nu
 
 ## Required expansion
 
-- Execute the script in MT5 and archive raw Journal output.
 - Add real indicator lifecycle tests for duplicate ticks and history reload.
 - Add Strategy Tester fixtures using broker history.
 - Add shared MQL5/NT golden fixtures.

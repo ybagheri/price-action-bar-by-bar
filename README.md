@@ -59,10 +59,11 @@ Verified in the current environment:
 
 - MQL5 indicator compilation: 0 errors, 0 warnings.
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
+- MQL5 regression harness runtime: 41 passed, 0 failed (Alpari MT5_2, EURUSD M5).
 - Python research tests: 6 passed.
 - Python `compileall`: passed.
 
-The MQL5 harness contains 11 deterministic groups but has not been executed automatically in MT5 in this environment. No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
+No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 
 ## Historical analysis
 
@@ -76,7 +77,7 @@ Python validates `confirmed_at <= decision_time` and evaluates target, invalidat
 - Pattern and measured-move logic remains lightweight.
 - Current forming bars are intentionally excluded from decisions.
 - NinjaTrader is an unverified secondary port and is not at parity with the new MQL5 engine.
-- MQL5 runtime tests, Strategy Tester runs, broker-spread modeling, and broad historical validation remain required.
+- Indicator lifecycle, Strategy Tester runs, broker-spread modeling, and broad historical validation remain required.
 - No orders are placed.
 
 ## Documentation

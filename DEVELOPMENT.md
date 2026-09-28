@@ -36,8 +36,12 @@ Python must not independently redefine MT5 setups. It validates and measures exp
 
 ## Current technical debt
 
-- MQL5 runtime harness automation.
+- Indicator lifecycle runtime tests (duplicate ticks, history reload).
 - Stable timestamp-based pattern slope normalization.
 - Higher-timeframe and session context.
 - Event export outcome reports and aggregate statistics.
 - NinjaTrader compilation/parity fixtures.
+
+## MQL5 test fixtures
+
+Analyzers consume series order: index 0 is the newest bar, and `bars[n-1]` is the oldest. Synthetic `SBarInfo` fixtures built directly in a test must follow that convention; building them oldest-first silently inverts displacement, net-move, and overlap direction. Route OHLC fixtures through `BuildSeries` in the harness rather than hand-ordering them.
