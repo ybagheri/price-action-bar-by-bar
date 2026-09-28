@@ -89,6 +89,7 @@ The reporting tool is tested but has not yet been run against a real export, so 
 
 ## Documentation
 
+- `HANDOFF.md` — current verified state, conventions, gaps, and next steps
 - `INSTALLATION.md` — MT5 installation
 - `MT5_GUIDE.md` — chart usage and visibility controls
 - `CONFIGURATION.md` — inputs and score thresholds

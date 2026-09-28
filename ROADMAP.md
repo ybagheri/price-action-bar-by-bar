@@ -1,5 +1,8 @@
 # Roadmap
 
+Current state, verified evidence, and open gaps are summarised in
+[`HANDOFF.md`](HANDOFF.md).
+
 ## Completed
 
 - Repository audit and architecture decision.

@@ -10,6 +10,7 @@
 - Opt-in sandboxed CSV event export with engine and parameter versions.
 - Python event timing validation and target/invalidation/ambiguity/MFE/MAE analysis.
 - Repository audit, architecture proposal, and English maintainer documentation.
+- `HANDOFF.md` summarising verified state, conventions, gaps, and next steps.
 - Archived MQL5 harness runtime output under `research/test_artifacts`.
 - `setup_type` carried into `SetupEvent` and validated against the engine's setup list.
 - `load_price_bars` for outcome evaluation from exported bar history.
@@ -30,6 +31,7 @@
 - Intended inside-bar test fixture now is an inside bar.
 - Pullback-sequence fixture no longer expects H1 on a bar that sets a new leg high.
 - Context fixture is now built in series order (index 0 = newest closed bar).
+- Event and bar CSV loaders read `utf-8-sig` so a BOM cannot hide the first column name.
 
 ### Validation
 
