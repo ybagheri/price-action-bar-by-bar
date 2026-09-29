@@ -1,6 +1,27 @@
+"""Outcome evaluation for an exported setup event.
+
+The evaluator answers one question: given an event's entry, invalidation and
+target, what did price do next, and when did it first touch one of the levels?
+
+Performance note, learned the hard way
+--------------------------------------
+This module originally began every evaluation with a full ``sorted(...)`` scan
+of the bar list. That is fine for a handful of fixture bars and catastrophic
+on a real export: 72,188 events against 72,175 bars is roughly five billion
+operations, and the walk-forward report times out. :class:`BarSeries` precomputes
+the sorted time index once so locating the first bar at or after a decision is
+a binary search instead of a sort.
+
+Behaviour is unchanged. ``evaluate_setup`` still accepts a plain list of
+:class:`~pab_research.events.PriceBar`, so existing callers and tests are
+unaffected; the fast path is simply used automatically when handed a
+``BarSeries``.
+"""
+
+from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Sequence
 
 from .events import PriceBar, SetupEvent
 
@@ -16,20 +37,43 @@ class OutcomeResult:
     mae: float
 
 
-def evaluate_setup(event: SetupEvent, bars: list[PriceBar]) -> OutcomeResult:
+@dataclass(frozen=True)
+class BarSeries:
+    """Bars paired with a precomputed, ascending time index."""
+
+    bars: tuple[PriceBar, ...]
+    times: tuple[datetime, ...]
+
+    @classmethod
+    def of(cls, bars: Sequence[PriceBar]) -> "BarSeries":
+        """Build an index from any bar sequence, sorting it if necessary.
+
+        Sorting here rather than in the loader means a caller may pass bars in
+        arrival order and still get correct, fast evaluation. It happens once
+        per report run.
+        """
+        ordered = sorted(bars, key=lambda bar: bar.open_time)
+        return cls(tuple(ordered), tuple(bar.open_time for bar in ordered))
+
+    def first_index_at_or_after(self, when: datetime) -> int:
+        return bisect_left(self.times, when)
+
+    def __len__(self) -> int:
+        return len(self.bars)
+
+
+def evaluate_setup(event: SetupEvent, bars: Sequence[PriceBar] | BarSeries) -> OutcomeResult:
     if event.status == "no_trade":
         return OutcomeResult("no_trade", None, None, 0.0, 0.0)
 
-    future = sorted(
-        (bar for bar in bars if bar.open_time >= event.decision_time),
-        key=lambda bar: bar.open_time,
-    )
-    if not future:
+    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    start = series.first_index_at_or_after(event.decision_time)
+    if start >= len(series.bars):
         return OutcomeResult("expired", None, None, 0.0, 0.0)
 
     mfe = 0.0
     mae = 0.0
-    for index, bar in enumerate(future, start=1):
+    for index, bar in enumerate(series.bars[start:], start=1):
         if event.direction == "long":
             favorable = (bar.high - event.entry) / event.entry
             adverse = (bar.low - event.entry) / event.entry

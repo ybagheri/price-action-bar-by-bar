@@ -4,12 +4,17 @@ from typing import Literal
 
 Direction = Literal["long", "short", "none"]
 
-# Mirrors SetupTypeLabel() in MQL5/Indicators/PriceActionBarByBar.mq5.
-# Kept in sync deliberately: the research layer validates exported events,
-# it does not re-derive them.
+# Must contain exactly the strings SetupTypeLabel() in
+# MQL5/Indicators/PriceActionBarByBar.mq5 can emit.
+#
+# It previously listed "none" and omitted "no_trade", so it did not mirror
+# the engine at all: every no-trade event in a real export was rejected with
+# "unknown setup_type 'no_trade'". Note that "none" IS what
+# SetupDirectionLabel() emits, for direction - it is not a setup type.
+# A test pins this set so the two cannot drift apart again unnoticed.
 SETUP_TYPES = frozenset(
     {
-        "none",
+        "no_trade",
         "trend_pullback",
         "second_entry",
         "range_reversal",
@@ -43,7 +48,9 @@ class SetupEvent:
     risk_reward: float = 0.0
     engine_version: str = ""
     parameter_version: str = ""
-    setup_type: str = "none"
+    # "no_trade" is what SetupTypeLabel() emits when there is no setup, so
+    # it is also the right default when the column is missing entirely.
+    setup_type: str = "no_trade"
     # ``symbol`` and ``period`` were appended to the export after the first
     # release. They default to "" so files written by an older build still
     # load, and multi-instrument grouping reports them as "unspecified"
@@ -80,6 +87,94 @@ def validate_event_timing(event: SetupEvent) -> None:
         raise ValueError("decision_time must not precede bar_close_time")
 
 
+DELIMITERS = ("\t", ";", ",")
+
+
+def sniff_delimiter(handle) -> str:
+    """Pick the CSV dialect that matches the header line actually on disk.
+
+    MQL5's ``FileOpen(..., FILE_CSV)`` defaults to a TAB delimiter, but
+    ``csv.DictReader`` defaults to a comma. Assuming the comma meant the
+    loader treated a whole tab-separated line as one field and then raised
+    ``KeyError: event_id`` on every real export, while passing every test,
+    because the test fixtures were themselves written with Python's
+    comma-defaulting writer.
+
+    The delimiter is therefore read from the file rather than assumed, and
+    the first line is pushed back so the caller still sees the header.
+    """
+    header = handle.readline()
+    if not header:
+        raise ValueError("file is empty")
+
+    for candidate in DELIMITERS:
+        if candidate in header:
+            handle.seek(0)
+            return candidate
+
+    # A single-column file is legal; tab is what MQL5 would have used.
+    handle.seek(0)
+    return "\t"
+
+
+def parse_timestamp(value: str) -> datetime:
+    """Parse a timestamp from an MQL5 export or a hand-built bar file.
+
+    Two spellings occur in practice and both are accepted:
+
+    * ``2026-01-02 07:00:00`` — what ``IsoTimestamp`` in the MQL5 engine
+      writes, and what ``datetime.fromisoformat`` understands.
+    * ``2026.01.02 07:00:00`` — what ``TimeToString(..., TIME_DATE |
+      TIME_SECONDS)`` writes, and what every event file exported before
+      Phase 16 contains.
+
+    The second form is not ISO-8601, so ``datetime.fromisoformat`` rejects
+    it. Rejecting it would mean the research layer cannot read any export
+    produced by an earlier build, which is exactly the sort of silent gap
+    this project is supposed to avoid. The replacement is unambiguous:
+    a dot may only ever appear as a date separator here, so a targeted
+    rewrite of the date component is safe.
+
+    A naive ``str.replace(".", "-")`` would also mangle fractional seconds
+    and timezone offsets, so only the leading ``YYYY.MM.DD`` is touched.
+    """
+    text = value.strip()
+    if not text:
+        raise ValueError("empty timestamp")
+
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        pass
+
+    # YYYY . MM . DD <sep> time...   where <sep> is a space or "T"
+    head, dot, rest = text.partition(".")
+    if not dot:
+        raise ValueError(f"unrecognised timestamp {value!r}")
+
+    month, dot, rest = rest.partition(".")
+    if not dot or len(head) != 4 or len(month) != 2:
+        raise ValueError(f"unrecognised timestamp {value!r}")
+
+    # ISO 8601 permits either separator, and MT5 emits the space form.
+    if " " in rest:
+        day, _, tail = rest.partition(" ")
+        rebuilt = f"{head}-{month}-{day} {tail}"
+    elif "T" in rest:
+        day, _, tail = rest.partition("T")
+        rebuilt = f"{head}-{month}-{day}T{tail}"
+    else:
+        raise ValueError(f"unrecognised timestamp {value!r}")
+
+    if len(day) != 2:
+        raise ValueError(f"unrecognised timestamp {value!r}")
+
+    try:
+        return datetime.fromisoformat(rebuilt)
+    except ValueError as error:
+        raise ValueError(f"unrecognised timestamp {value!r}") from error
+
+
 def load_setup_events(path: str) -> list[SetupEvent]:
     """Load and validate exported setup events from the MQL5 CSV.
 
@@ -90,15 +185,16 @@ def load_setup_events(path: str) -> list[SetupEvent]:
 
     events: list[SetupEvent] = []
     with open(path, newline="", encoding="utf-8-sig") as handle:
-        for row in csv.DictReader(handle):
+        delimiter = sniff_delimiter(handle)
+        for row in csv.DictReader(handle, delimiter=delimiter):
             events.append(
                 SetupEvent(
                     event_id=row["event_id"],
                     direction=row["direction"],
-                    bar_open_time=datetime.fromisoformat(row["bar_open_time"]),
-                    bar_close_time=datetime.fromisoformat(row["bar_close_time"]),
-                    confirmed_at=datetime.fromisoformat(row["confirmed_at"]),
-                    decision_time=datetime.fromisoformat(row["decision_time"]),
+                    bar_open_time=parse_timestamp(row["bar_open_time"]),
+                    bar_close_time=parse_timestamp(row["bar_close_time"]),
+                    confirmed_at=parse_timestamp(row["confirmed_at"]),
+                    decision_time=parse_timestamp(row["decision_time"]),
                     entry=float(row["entry"]),
                     invalidation=float(row["invalidation"]),
                     target=float(row["target"]),
@@ -107,7 +203,7 @@ def load_setup_events(path: str) -> list[SetupEvent]:
                     risk_reward=float(row["risk_reward"]),
                     engine_version=row["engine_version"],
                     parameter_version=row["parameter_version"],
-                    setup_type=row.get("setup_type") or "none",
+                    setup_type=row.get("setup_type") or "no_trade",
                     symbol=row.get("symbol") or "",
                     period=row.get("period") or "",
                 )
@@ -127,10 +223,11 @@ def load_price_bars(path: str) -> list[PriceBar]:
 
     bars: list[PriceBar] = []
     with open(path, newline="", encoding="utf-8-sig") as handle:
-        for row in csv.DictReader(handle):
+        delimiter = sniff_delimiter(handle)
+        for row in csv.DictReader(handle, delimiter=delimiter):
             bars.append(
                 PriceBar(
-                    open_time=datetime.fromisoformat(row["open_time"]),
+                    open_time=parse_timestamp(row["open_time"]),
                     high=float(row["high"]),
                     low=float(row["low"]),
                 )

@@ -34,7 +34,7 @@ from datetime import datetime
 from typing import Sequence
 
 from .events import PriceBar, SetupEvent
-from .outcomes import evaluate_setup
+from .outcomes import BarSeries, evaluate_setup
 from .report import SetupStats, summarize
 
 IN_SAMPLE = "in_sample"
@@ -89,7 +89,7 @@ def _block(events: Sequence[SetupEvent], start: int, stop: int) -> list[SetupEve
 def _pooled(
     role: str,
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
 ) -> SetupStats:
     results = [evaluate_setup(event, bars) for event in events]
     return summarize(role, events, results)
@@ -97,7 +97,7 @@ def _pooled(
 
 def split_walk_forward(
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
     folds: int = 4,
     min_resolved: int = DEFAULT_MIN_RESOLVED,
 ) -> WalkForwardResult:
@@ -109,12 +109,16 @@ def split_walk_forward(
     out-of-sample block is preceded by an in-sample block of the same length.
 
     ``events`` need not be pre-sorted; they are ordered by ``decision_time``
-    here so that the split is deterministic.
+    here so that the split is deterministic. ``bars`` may be a plain list or a
+    prebuilt :class:`~pab_research.outcomes.BarSeries`; the index is built once
+    and shared by every fold and by the pooled totals.
     """
     if folds < 2:
         raise ValueError("folds must be at least 2 (one in-sample plus one out-of-sample)")
     if min_resolved < 1:
         raise ValueError("min_resolved must be at least 1")
+
+    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
 
     ordered = sorted(events, key=lambda event: event.decision_time)
     if not ordered:
@@ -143,12 +147,16 @@ def split_walk_forward(
                 role=role,
                 first_decision=block[0].decision_time,
                 last_decision=block[-1].decision_time,
-                stats=summarize(f"fold{index}-{role}", block, [evaluate_setup(e, bars) for e in block]),
+                stats=summarize(
+                    f"fold{index}-{role}",
+                    block,
+                    [evaluate_setup(e, series) for e in block],
+                ),
             )
         )
 
-    pooled_in = _pooled("in_sample (pooled)", in_sample_events, bars)
-    pooled_out = _pooled("out_of_sample (pooled)", out_of_sample_events, bars)
+    pooled_in = _pooled("in_sample (pooled)", in_sample_events, series)
+    pooled_out = _pooled("out_of_sample (pooled)", out_of_sample_events, series)
 
     if pooled_in.resolved < min_resolved:
         reliable, reason = False, f"in-sample resolved {pooled_in.resolved} < {min_resolved}"
@@ -170,7 +178,7 @@ def split_walk_forward(
 
 def group_by_instrument(
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
 ) -> dict[str, SetupStats]:
     """Group events by the exported symbol.
 
@@ -181,14 +189,15 @@ def group_by_instrument(
     grouped: dict[str, list[SetupEvent]] = {}
     for event in events:
         grouped.setdefault(event.symbol or UNKNOWN_SYMBOL, []).append(event)
+    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
     return {
-        key: _pooled(key, group, bars) for key, group in sorted(grouped.items())
+        key: _pooled(key, group, series) for key, group in sorted(grouped.items())
     }
 
 
 def instrument_walk_forward(
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
     folds: int = 4,
     min_resolved: int = DEFAULT_MIN_RESOLVED,
 ) -> dict[str, WalkForwardResult]:
@@ -202,12 +211,13 @@ def instrument_walk_forward(
     for event in events:
         grouped.setdefault(event.symbol or UNKNOWN_SYMBOL, []).append(event)
 
+    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
     results: dict[str, WalkForwardResult] = {}
     for symbol, group in sorted(grouped.items()):
         try:
-            results[symbol] = split_walk_forward(group, bars, folds, min_resolved)
+            results[symbol] = split_walk_forward(group, series, folds, min_resolved)
         except ValueError:
-            results[symbol] = split_walk_forward(group, bars, 2, min_resolved)
+            results[symbol] = split_walk_forward(group, series, 2, min_resolved)
     return results
 
 

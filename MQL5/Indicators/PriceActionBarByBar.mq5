@@ -4,40 +4,37 @@
 //|          OOP MQL5 indicator inspired by Al Brooks'                |
 //|          "Reading Price Charts Bar by Bar"                       |
 //|                                                                    |
-//| ARCHITECTURE (see README.md for the full class diagram):          |
+//| ARCHITECTURE (see ARCHITECTURE.md for the full description):      |
 //|                                                                    |
-//|   OnCalculate() ──▶ COrchestrator.Run()                           |
+//|   OnCalculate() ──▶ CPabEngine                                   |
 //|                        │                                          |
-//|                        ├─▶ CBarClassifier   (bar type + pullbacks +|
-//|                        │                     breakout/climax)     |
+//|                        ├─▶ CBarClassifier   (bar type, pullbacks, |
+//|                        │                     breakout, climax)    |
 //|                        ├─▶ CSwingDetector    (swing highs/lows)   |
 //|                        ├─▶ CTradingRangeDetector (regime state)   |
-//|                        ├─▶ CPatternDetector  (swing-based patterns)|
+//|                        ├─▶ CPatternDetector  (swing patterns)     |
 //|                        ├─▶ CAlwaysInTracker  (sticky bull/bear)   |
-//|                        ├─▶ CMeasuredMoveDetector (swing-based MM) |
-//|                        └─▶ CChartRenderer    (all drawing)        |
+//|                        ├─▶ CMeasuredMoveDetector (swing MM)      |
+//|                        ├─▶ CContextAnalyzer  (micro/medium)       |
+//|                        └─▶ CDecisionEngine   (setup, risk, why)  |
 //|                                                                    |
-//| Each analyzer is independent and swappable (implements IAnalyzer  |
-//| where its update model is bar-driven). The orchestrator is the    |
-//| only place that knows the pipeline order.                        |
+//                        CChartRenderer  (all drawing, this file)    |
+//|                                                                    |
+//| The engine is shared verbatim with the historical replay in        |
+//| MQL5/Experts/PabEventExport.mq5, so an exported event and a chart  |
+//| setup are the same computation rather than two implementations    |
+//| that agree until one of them is edited.                           |
 //+------------------------------------------------------------------+
 #property copyright "ybagheri"
 #property link      "https://github.com/ybagheri/price-action-bar-by-bar"
-#property version   "1.40"
+#property version   "1.50"
 #property indicator_chart_window
 #property indicator_buffers 1
 #property indicator_plots   1
 
 #include "../Include/PriceActionBarByBar/PAB_Types.mqh"
 #include "../Include/PriceActionBarByBar/PAB_Utils.mqh"
-#include "../Include/PriceActionBarByBar/BarClassifier.mqh"
-#include "../Include/PriceActionBarByBar/SwingDetector.mqh"
-#include "../Include/PriceActionBarByBar/TradingRangeDetector.mqh"
-#include "../Include/PriceActionBarByBar/PatternDetector.mqh"
-#include "../Include/PriceActionBarByBar/AlwaysInTracker.mqh"
-#include "../Include/PriceActionBarByBar/MeasuredMoveDetector.mqh"
-#include "../Include/PriceActionBarByBar/ContextAnalyzer.mqh"
-#include "../Include/PriceActionBarByBar/DecisionEngine.mqh"
+#include "../Include/PriceActionBarByBar/PabEngine.mqh"
 #include "../Include/PriceActionBarByBar/ChartRenderer.mqh"
 
 //====================================================================
@@ -102,26 +99,52 @@ input color  InpColorClimax        = clrRed;
 input color  InpColorMeasuredMove  = clrAqua;
 
 //====================================================================
-// GLOBAL STATE (single instance of each analyzer — orchestrator role)
+// GLOBAL STATE
 //====================================================================
+// Phase 16: the analyzers now live inside CPabEngine, which owns the
+// pipeline. The orchestrator below is only the MT5 lifecycle: closed-bar
+// gate, ATR injection, and drawing. The historical replay in
+// MQL5/Experts/PabEventExport.mq5 drives the same engine, so a setup on
+// a chart and a setup in an exported event are the same computation.
 double              g_dummyBuffer[];   // required by indicator_buffers, unused for drawing
 
-CBarClassifier      *g_classifier   = NULL;
-CSwingDetector      *g_swings       = NULL;
-CTradingRangeDetector *g_range      = NULL;
-CPatternDetector    *g_patterns     = NULL;
-CAlwaysInTracker    *g_alwaysIn     = NULL;
-CMeasuredMoveDetector *g_measuredMove = NULL;
-CContextAnalyzer     *g_context      = NULL;
-CDecisionEngine      *g_decision     = NULL;
-CChartRenderer      *g_renderer     = NULL;
-SContextInfo          g_contextInfo;
-SSetupCandidate      g_candidate;
+CPabEngine         *g_engine      = NULL;
+CChartRenderer     *g_renderer    = NULL;
+SContextInfo        g_contextInfo;
+SSetupCandidate     g_candidate;
 string              g_objectPrefix = "";
 
-int                 g_atrHandle     = INVALID_HANDLE;   // Phase 2: real ATR, owned by the orchestrator
-double              g_atrBuf[];                          // scratch buffer, refilled every OnCalculate call
 int                 g_eventFileHandle = INVALID_HANDLE;
+
+bool BuildEngineConfig(SEngineConfig &cfg)
+  {
+   cfg.dojiBodyRatio      = InpDojiBodyRatio;
+   cfg.clvFavorableMin    = InpClvFavorableMin;
+   cfg.featureLookback    = InpFeatureLookback;
+   cfg.largeRangeMult     = InpLargeRangeMult;
+   cfg.smallRangeMult     = InpSmallRangeMult;
+   cfg.strongBodyRatio    = InpStrongBodyRatio;
+   cfg.historyCapacity    = 2000;
+   cfg.breakoutLookback   = InpBreakoutLookback;
+   cfg.breakoutClvMin     = InpBreakoutClvMin;
+   cfg.climaxLookback     = InpClimaxLookback;
+   cfg.climaxRangeMult    = InpClimaxRangeMult;
+   cfg.climaxBodyRatioMax = InpClimaxBodyRatioMax;
+   cfg.fractalLegs        = InpFractalLegs;
+   cfg.swingCapacity      = 500;
+   cfg.regimeLookback     = InpRegimeLookback;
+   cfg.overlapThreshold   = InpOverlapThreshold;
+   cfg.displaceThreshold  = InpDisplaceThreshold;
+   cfg.useRealAtr         = InpUseRealATR;
+   cfg.atrPeriod          = InpATRPeriod;
+   cfg.swingSimilarityPct = InpSwingSimilarityPct / 100.0;
+   cfg.convergenceMin     = InpConvergenceMin;
+   cfg.secondsPerBar      = (int)PeriodSeconds(_Period);
+   cfg.minimumQuality     = InpMinimumQuality;
+   cfg.minimumRiskReward  = InpMinimumRiskReward;
+   cfg.contextBars        = 10;
+   return(true);
+  }
 
 bool ValidateInputs()
   {
@@ -166,32 +189,17 @@ int OnInit()
    ArraySetAsSeries(g_dummyBuffer, true);
    PlotIndexSetInteger(0, PLOT_DRAW_TYPE, DRAW_NONE);
 
-   g_classifier = new CBarClassifier(InpDojiBodyRatio, 2000, InpClvFavorableMin,
-                                       InpBreakoutLookback, InpBreakoutClvMin,
-                                       InpClimaxLookback, InpClimaxRangeMult, InpClimaxBodyRatioMax,
-                                       InpFeatureLookback, InpLargeRangeMult, InpSmallRangeMult, InpStrongBodyRatio);
-   g_swings     = new CSwingDetector(InpFractalLegs);
-   g_range      = new CTradingRangeDetector(InpRegimeLookback, InpOverlapThreshold, InpDisplaceThreshold);
-   g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin,
-                                       (int)PeriodSeconds(_Period));
-   g_alwaysIn   = new CAlwaysInTracker();
-   g_measuredMove = new CMeasuredMoveDetector();
-   g_context    = new CContextAnalyzer();
-   g_decision   = new CDecisionEngine(InpMinimumQuality, InpMinimumRiskReward);
-   g_renderer   = new CChartRenderer(ChartID(), g_objectPrefix);
+   SEngineConfig cfg;
+   BuildEngineConfig(cfg);
 
-   if(g_classifier == NULL || g_swings == NULL || g_range == NULL || g_patterns == NULL ||
-      g_alwaysIn == NULL || g_measuredMove == NULL || g_context == NULL || g_decision == NULL || g_renderer == NULL)
+   g_engine   = new CPabEngine();
+   g_renderer = new CChartRenderer(ChartID(), g_objectPrefix);
+
+   if(g_engine == NULL || g_renderer == NULL ||
+      !g_engine.Init(cfg, _Symbol, _Period))
      {
-      Print("PriceActionBarByBar: analyzer allocation failed");
+      Print("PriceActionBarByBar: engine allocation failed");
       return(INIT_FAILED);
-     }
-
-   if(InpUseRealATR)
-     {
-      g_atrHandle = iATR(_Symbol, _Period, InpATRPeriod);
-      if(g_atrHandle == INVALID_HANDLE)
-         Print("PriceActionBarByBar: iATR() failed, falling back to the internal simple average — error ", GetLastError());
      }
 
    if(InpExportEvents)
@@ -240,21 +248,9 @@ void OnDeinit(const int reason)
    if(g_renderer != NULL)
       g_renderer.ClearAll();
 
-   if(g_atrHandle != INVALID_HANDLE)
-     {
-      IndicatorRelease(g_atrHandle);
-      g_atrHandle = INVALID_HANDLE;
-     }
-
-   if(g_classifier != NULL) { delete g_classifier; g_classifier = NULL; }
-   if(g_swings     != NULL) { delete g_swings;     g_swings     = NULL; }
-   if(g_range      != NULL) { delete g_range;      g_range      = NULL; }
-   if(g_patterns   != NULL) { delete g_patterns;   g_patterns   = NULL; }
-   if(g_alwaysIn   != NULL) { delete g_alwaysIn;   g_alwaysIn   = NULL; }
-   if(g_measuredMove != NULL) { delete g_measuredMove; g_measuredMove = NULL; }
-   if(g_context    != NULL) { delete g_context;    g_context    = NULL; }
-   if(g_decision   != NULL) { delete g_decision;   g_decision   = NULL; }
-   if(g_renderer   != NULL) { delete g_renderer;   g_renderer   = NULL; }
+   if(g_engine != NULL) { g_engine.ReleaseAtr(); }
+   if(g_engine   != NULL) { delete g_engine;   g_engine   = NULL; }
+   if(g_renderer != NULL) { delete g_renderer; g_renderer = NULL; }
   }
 
 //+------------------------------------------------------------------+
@@ -337,12 +333,7 @@ int OnCalculate(const int rates_total,
    int start;
    if(prev_calculated <= 0)
      {
-      g_classifier.Reset();
-      g_swings.Reset();
-      g_range.Reset();
-      g_patterns.Reset();
-      g_alwaysIn.Reset();
-      g_measuredMove.Reset();
+      g_engine.Reset();
       g_contextInfo.valid = false;
       g_renderer.ClearAll();
       start = rates_total - 1;
@@ -354,75 +345,48 @@ int OnCalculate(const int rates_total,
      }
 
    bool processedClosedBar = (start >= 1);
-   bool haveFreshAtr = false;
-   if(processedClosedBar && g_atrHandle != INVALID_HANDLE)
+   if(processedClosedBar)
      {
-      ArraySetAsSeries(g_atrBuf, true);
-      int copied = CopyBuffer(g_atrHandle, 0, 0, rates_total, g_atrBuf);
-      haveFreshAtr = (copied == rates_total);
-      if(!haveFreshAtr)
-         PrintFormat("PriceActionBarByBar: CopyBuffer copied %d of %d ATR values, error %d",
-                     copied, rates_total, GetLastError());
+      bool atrOk = false;
+      g_engine.RefreshAtr(rates_total, atrOk);
      }
-
-   if(haveFreshAtr)
-      g_range.SetATRSeries(g_atrBuf);
 
    for(int i = start; i >= 1; i--)
-     {
-      g_classifier.Update(i, time, open, high, low, close, rates_total);
-      g_swings.Update(i, time, open, high, low, close, rates_total);
-      g_range.Update(i, time, open, high, low, close, rates_total);
-     }
+      g_engine.ProcessBar(i, time, open, high, low, close, rates_total);
 
-   int swingCount = g_swings.Count();
+   int swingCount = g_engine.SwingCount();
    SSwingPoint swingArr[];
    if(processedClosedBar && swingCount > 0)
      {
       ArrayResize(swingArr, swingCount);
       for(int i = 0; i < swingCount; i++)
-         g_swings.GetSwing(i, swingArr[i]);
-      g_patterns.AnalyzeSwings(swingArr, swingCount);
-      g_measuredMove.AnalyzeSwings(swingArr, swingCount);
+         g_engine.GetSwing(i, swingArr[i]);
      }
 
    if(processedClosedBar)
      {
-      SSwingPoint latestHigh, latestLow;
-      bool haveHigh = g_swings.LatestOfType(SWING_HIGH, latestHigh);
-      bool haveLow  = g_swings.LatestOfType(SWING_LOW, latestLow);
-      g_alwaysIn.Evaluate(close[1], haveHigh, haveHigh ? latestHigh.price : 0.0,
-                           haveLow, haveLow ? latestLow.price : 0.0, time[1]);
-
-      int recentCount = MathMin(g_classifier.Count(), 10);
-      SBarInfo recent[];
-      ArrayResize(recent, recentCount);
-      for(int i = 0; i < recentCount; i++)
-         g_classifier.GetBar(i, recent[i]);
-      g_context.Analyze(recent, recentCount, swingArr, swingCount,
-                        g_range.State(), g_alwaysIn.State(), g_contextInfo);
-
-      SBarInfo latestClosed;
-      if(g_classifier.GetBar(0, latestClosed))
+      if(g_engine.Evaluate(close[1], time[1], g_candidate))
         {
-         SPatternInfo currentPattern = g_patterns.LastPattern();
-         SMeasuredMoveInfo currentMeasured = g_measuredMove.Current();
-         g_decision.Analyze(latestClosed, g_contextInfo, currentPattern, currentMeasured, g_candidate);
+         g_contextInfo = g_engine.Context();
          if(g_eventFileHandle != INVALID_HANDLE && g_candidate.barTime > 0)
            {
-            datetime closeTime = latestClosed.time + PeriodSeconds(_Period);
+            // The candidate's barTime is the classified bar's open time,
+            // so the close time is exactly one period later. Exported
+            // decision_time equals bar_close_time, which is the invariant
+            // the research layer enforces.
+            datetime closeTime = g_candidate.barTime + PeriodSeconds(_Period);
             string parameterVersion = StringFormat("q%d|rr%.2f|f%d|l%.2f|s%.2f|b%d|c%.2f",
                                                   InpMinimumQuality, InpMinimumRiskReward,
                                                   InpFractalLegs, InpLargeRangeMult, InpSmallRangeMult,
                                                   InpBreakoutLookback, InpClimaxRangeMult);
             FileWrite(g_eventFileHandle,
-                      StringFormat("%I64d-%d", (long)latestClosed.time, g_candidate.qualityScore),
+                      StringFormat("%I64d-%d", (long)g_candidate.barTime, g_candidate.qualityScore),
                       SetupDirectionLabel(g_candidate.direction), SetupTypeLabel(g_candidate.type),
                       SetupStatusLabel(g_candidate.status),
-                      TimeToString(latestClosed.time, TIME_DATE | TIME_SECONDS),
-                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
-                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
-                      TimeToString(closeTime, TIME_DATE | TIME_SECONDS),
+                      IsoTimestamp(g_candidate.barTime),
+                      IsoTimestamp(closeTime),
+                      IsoTimestamp(closeTime),
+                      IsoTimestamp(closeTime),
                       DoubleToString(g_candidate.entryPrice, _Digits),
                       DoubleToString(g_candidate.stopPrice, _Digits),
                       DoubleToString(g_candidate.targetPrice, _Digits),
@@ -434,11 +398,11 @@ int OnCalculate(const int rates_total,
         }
      }
 
-   int renderCount = MathMin(g_classifier.Count(), start + 1);
+   int renderCount = MathMin(g_engine.BarCount(), start + 1);
    for(int i = 0; i < renderCount; i++)
      {
       SBarInfo bar;
-      if(g_classifier.GetBar(i, bar))
+      if(g_engine.GetBar(i, bar))
         {
          g_renderer.DrawBarLabel(bar, i);
          g_renderer.DrawBreakoutMarker(bar);
@@ -449,23 +413,23 @@ int OnCalculate(const int rates_total,
    for(int i = 0; i < swingCount; i++)
      {
       SSwingPoint sp;
-      g_swings.GetSwing(i, sp);
+      g_engine.GetSwing(i, sp);
       g_renderer.DrawSwing(sp);
      }
 
    STradingRangeInfo ri;
-   if(g_range.GetRange(ri))
+   if(g_engine.GetTradingRange(ri))
       g_renderer.DrawTradingRange(ri, time);
    else
       g_renderer.HideTradingRange();
 
-   SPatternInfo pi = g_patterns.LastPattern();
+   SPatternInfo pi = g_engine.Pattern();
    if(pi.type != PATTERN_NONE)
       g_renderer.DrawPattern(pi, high[1]);
    else
       g_renderer.HidePattern();
 
-   SMeasuredMoveInfo mm = g_measuredMove.Current();
+   SMeasuredMoveInfo mm = g_engine.MeasuredMove();
    if(mm.active)
       g_renderer.DrawMeasuredMove(mm, time[1]);
    else
@@ -476,8 +440,8 @@ int OnCalculate(const int rates_total,
    if(InpShowStatePanel)
      {
       string panel = StringFormat("PriceActionBarByBar\nMedium: %s | Micro: %s\nAlways-In: %s | Swings: %d",
-                                   StateLabel(g_range.State()), StateLabel(g_contextInfo.microState),
-                                   AlwaysInLabel(g_alwaysIn.State()), swingCount);
+                                   StateLabel(g_engine.MediumState()), StateLabel(g_contextInfo.microState),
+                                   AlwaysInLabel(g_engine.AlwaysInState()), swingCount);
       g_renderer.DrawStatePanel(panel);
      }
    else

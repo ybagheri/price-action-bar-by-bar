@@ -13,7 +13,29 @@
 // this value: the research layer keys archived results off it, and the two
 // drifting apart already produced one event file that claimed 1.30 while the
 // compiled indicator reported 1.20.
-#define PAB_ENGINE_VERSION "1.40"
+#define PAB_ENGINE_VERSION "1.50"
+
+//+------------------------------------------------------------------+
+//| ISO-8601 timestamp for the CSV export, e.g. 2026-01-02 07:00:00   |
+//|                                                                   |
+//| TimeToString(..., TIME_DATE|TIME_SECONDS) is NOT used for export  |
+//| because it emits 2026.01.02 07:00:00, and Python's                |
+//| datetime.fromisoformat rejects a dot date separator. Every real   |
+//| event file written before this helper existed is therefore        |
+//| unreadable by the research layer; pab_research.events now accepts |
+//| both spellings so old exports still load.                         |
+//|                                                                   |
+//| TimeToStruct's default conversion matches TimeToString's default, |
+//| i.e. terminal-local time, so the two agree.                       |
+//+------------------------------------------------------------------+
+string IsoTimestamp(const datetime t)
+  {
+   MqlDateTime parts;
+   TimeToStruct(t, parts);
+   return(StringFormat("%04d-%02d-%02d %02d:%02d:%02d",
+                       parts.year, parts.mon, parts.day,
+                       parts.hour, parts.min, parts.sec));
+  }
 
 //+------------------------------------------------------------------+
 //| Broker-neutral label for an ENUM_TIMEFRAMES, used by the export   |
@@ -314,4 +336,49 @@ struct SSetupCandidate
    string            reasons[8];
    string            risks[6];
    string            noTradeReason;
+  };
+
+//====================================================================
+// ENGINE CONFIGURATION (Phase 16)
+//====================================================================
+
+// Every tunable the analysis pipeline needs, in one place. The indicator
+// fills this from its own inputs; the export EA fills it from its own
+// inputs. Neither owns analyzer construction, so a setup produced on a
+// chart and a setup produced by a historical replay are produced by the
+// same code and the same parameters.
+struct SEngineConfig
+  {
+   // BarClassifier
+   double            dojiBodyRatio;
+   double            clvFavorableMin;
+   int               featureLookback;
+   double            largeRangeMult;
+   double            smallRangeMult;
+   double            strongBodyRatio;
+   int               historyCapacity;
+   // Breakout / climax
+   int               breakoutLookback;
+   double            breakoutClvMin;
+   int               climaxLookback;
+   double            climaxRangeMult;
+   double            climaxBodyRatioMax;
+   // SwingDetector
+   int               fractalLegs;
+   int               swingCapacity;
+   // TradingRangeDetector
+   int               regimeLookback;
+   double            overlapThreshold;
+   double            displaceThreshold;
+   bool              useRealAtr;
+   int               atrPeriod;
+   // PatternDetector
+   double            swingSimilarityPct;   // fraction, e.g. 0.0015
+   double            convergenceMin;       // fraction of price per bar
+   int               secondsPerBar;
+   // DecisionEngine
+   int               minimumQuality;
+   double            minimumRiskReward;
+   // ContextAnalyzer
+   int               contextBars;
   };

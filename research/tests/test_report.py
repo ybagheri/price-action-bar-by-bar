@@ -5,6 +5,7 @@ import unittest
 from datetime import datetime, timedelta
 
 from pab_research import (
+    SETUP_TYPES,
     PriceBar,
     SetupEvent,
     evaluate_and_summarize,
@@ -13,6 +14,7 @@ from pab_research import (
     group_by_status,
     load_price_bars,
     load_setup_events,
+    parse_timestamp,
     summarize,
 )
 from pab_research.outcomes import OutcomeResult
@@ -115,7 +117,7 @@ def no_trade_event(**overrides):
         "status": "no_trade",
         "quality": 0,
         "risk_reward": 0.0,
-        "setup_type": "none",
+        "setup_type": "no_trade",
     }
     values.update(overrides)
     return make_event(**values)
@@ -222,9 +224,9 @@ class GroupingTests(unittest.TestCase):
         self.assertEqual(sum(group.total for group in groups.values()), 3)
         self.assertEqual(groups["second_entry"].total, 1)
         self.assertEqual(groups["second_entry"].no_trade, 0)
-        self.assertEqual(groups["none"].total, 2)
-        self.assertEqual(groups["none"].no_trade, 2)
-        self.assertEqual(groups["none"].resolved, 0)
+        self.assertEqual(groups["no_trade"].total, 2)
+        self.assertEqual(groups["no_trade"].no_trade, 2)
+        self.assertEqual(groups["no_trade"].resolved, 0)
 
     def test_evaluate_and_summarize_uses_outcome_evaluator(self):
         events = [make_event(setup_type="trend_pullback")]
@@ -265,16 +267,31 @@ class EventContractTests(unittest.TestCase):
             make_event(setup_type="moon_phase")
 
     def test_accepts_every_setup_type_the_engine_exports(self):
-        for name in (
-            "none",
-            "trend_pullback",
-            "second_entry",
-            "range_reversal",
-            "failed_breakout",
-            "breakout_follow_through",
-            "wedge_reversal",
-        ):
+        for name in SETUP_TYPES:
             self.assertEqual(make_event(setup_type=name).setup_type, name)
+
+    def test_setup_type_set_matches_the_mql5_label_function(self):
+        # Pinned explicitly. SETUP_TYPES is documented as mirroring
+        # SetupTypeLabel() in PriceActionBarByBar.mq5, and it silently did
+        # not: it carried "none" (which is a *direction*) and omitted
+        # "no_trade", so every no-trade row in a real export was rejected.
+        # Changing either side without the other must fail this test.
+        self.assertEqual(
+            SETUP_TYPES,
+            frozenset(
+                {
+                    "no_trade",
+                    "trend_pullback",
+                    "second_entry",
+                    "range_reversal",
+                    "failed_breakout",
+                    "breakout_follow_through",
+                    "wedge_reversal",
+                }
+            ),
+        )
+        self.assertNotIn("none", SETUP_TYPES)
+
 
     def test_loads_setup_type_from_csv(self):
         path = self._write_events_csv({"setup_type": "wedge_reversal"})
@@ -284,7 +301,49 @@ class EventContractTests(unittest.TestCase):
     def test_csv_without_setup_type_column_defaults_to_none(self):
         path = self._write_events_csv({}, drop=("setup_type",))
         events = load_setup_events(path)
-        self.assertEqual(events[0].setup_type, "none")
+        self.assertEqual(events[0].setup_type, "no_trade")
+
+    def test_reads_a_tab_separated_file_like_mql5_writes(self):
+        # MQL5's FileOpen(..., FILE_CSV) defaults to a TAB delimiter while
+        # csv.DictReader defaults to a comma. Assuming the comma made the
+        # loader treat a whole tab-separated line as one field and raise
+        # KeyError: event_id, which only ever appeared once a real export
+        # was finally read.
+        path = os.path.join(self.tmp.name, "tab_events.csv")
+        row = dict(EVENT_ROW)
+        row["setup_type"] = "no_trade"
+        with open(path, "w", newline="", encoding="utf-8") as stream:
+            stream.write("\t".join(EVENT_FIELDS) + "\r\n")
+            stream.write("\t".join(row[name] for name in EVENT_FIELDS) + "\r\n")
+        events = load_setup_events(path)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].event_id, "e1")
+
+    def test_reads_a_semicolon_separated_file(self):
+        path = os.path.join(self.tmp.name, "semi_events.csv")
+        row = dict(EVENT_ROW)
+        with open(path, "w", newline="", encoding="utf-8") as stream:
+            stream.write(";".join(EVENT_FIELDS) + "\r\n")
+            stream.write(";".join(row[name] for name in EVENT_FIELDS) + "\r\n")
+        self.assertEqual(len(load_setup_events(path)), 1)
+
+    def test_reads_mql5_dotted_timestamps(self):
+        # TimeToString(..., TIME_DATE|TIME_SECONDS) emits 2026.01.01 12:01:00
+        # with dots, which datetime.fromisoformat rejects. Every event file
+        # exported before Phase 16 is in that format.
+        path = os.path.join(self.tmp.name, "dotted_events.csv")
+        row = dict(EVENT_ROW)
+        row["bar_open_time"] = "2026.01.01 12:00:00"
+        row["bar_close_time"] = "2026.01.01 12:01:00"
+        row["confirmed_at"] = "2026.01.01 12:01:00"
+        row["decision_time"] = "2026.01.01 12:01:00"
+        with open(path, "w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=EVENT_FIELDS)
+            writer.writeheader()
+            writer.writerow(row)
+        events = load_setup_events(path)
+        self.assertEqual(events[0].decision_time, START + timedelta(minutes=1))
+
 
     def test_csv_with_utf8_bom_is_readable(self):
         path = os.path.join(self.tmp.name, "bom_events.csv")
@@ -365,6 +424,42 @@ class EventContractTests(unittest.TestCase):
         self.assertEqual(exit_code, 1)
         self.assertIn("no events", buffer.getvalue())
 
+
+class ParseTimestampTests(unittest.TestCase):
+    def test_accepts_iso_with_dashes(self):
+        self.assertEqual(
+            parse_timestamp("2026-01-02 07:00:00"), datetime(2026, 1, 2, 7, 0, 0)
+        )
+
+    def test_accepts_mql5_dotted_dates(self):
+        self.assertEqual(
+            parse_timestamp("2026.01.02 07:00:00"), datetime(2026, 1, 2, 7, 0, 0)
+        )
+
+    def test_tolerates_surrounding_whitespace(self):
+        self.assertEqual(
+            parse_timestamp("  2026-01-02 07:00:00  "), datetime(2026, 1, 2, 7, 0, 0)
+        )
+
+    def test_does_not_mangle_fractional_seconds_or_offsets(self):
+        # A blanket str.replace('.', '-') would corrupt both of these.
+        self.assertEqual(
+            parse_timestamp("2026-01-02 07:00:00.250000"),
+            datetime(2026, 1, 2, 7, 0, 0, 250000),
+        )
+        self.assertEqual(
+            parse_timestamp("2026.01.02T07:00:00+00:00").utcoffset(),
+            timedelta(0),
+        )
+
+    def test_rejects_an_empty_value(self):
+        with self.assertRaisesRegex(ValueError, "empty timestamp"):
+            parse_timestamp("   ")
+
+    def test_rejects_nonsense(self):
+        for value in ("not a time", "2026_x_02 07:00:00", "2026.1 07:00:00"):
+            with self.assertRaisesRegex(ValueError, "unrecognised timestamp"):
+                parse_timestamp(value)
 
 if __name__ == "__main__":
     unittest.main()

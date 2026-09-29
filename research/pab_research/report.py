@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Sequence
 
 from .events import PriceBar, SetupEvent
-from .outcomes import OutcomeResult, evaluate_setup
+from .outcomes import BarSeries, OutcomeResult, evaluate_setup
 
 
 @dataclass(frozen=True)
@@ -107,26 +107,38 @@ def summarize(
     )
 
 
+def _as_series(bars: Sequence[PriceBar] | BarSeries) -> BarSeries:
+    """Reuse an already-built index, or build it once for a plain list."""
+    return bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+
+
 def evaluate_and_summarize(
     key: str,
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
 ) -> SetupStats:
-    """Evaluate every event against one bar history, then summarize the group."""
-    results = [evaluate_setup(event, bars) for event in events]
+    """Evaluate every event against one bar history, then summarize the group.
+
+    The bar index is built once here rather than once per event. On a real
+    export that is the difference between seconds and hours.
+    """
+    series = _as_series(bars)
+    results = [evaluate_setup(event, series) for event in events]
     return summarize(key, events, results)
 
 
 def _grouped(
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar],
+    bars: Sequence[PriceBar] | BarSeries,
     key_of,
 ) -> dict[str, SetupStats]:
     grouped: dict[str, list[SetupEvent]] = {}
     for event in events:
         grouped.setdefault(key_of(event), []).append(event)
+    # Index the bars a single time for the whole report.
+    series = _as_series(bars)
     return {
-        key: evaluate_and_summarize(key, group, bars)
+        key: evaluate_and_summarize(key, group, series)
         for key, group in sorted(grouped.items())
     }
 
@@ -155,13 +167,13 @@ def format_report(groups: dict[str, SetupStats], title: str = "Setup outcome rep
     """Render grouped statistics as a fixed-width text table."""
     columns = (
         f"{'group':<24}{'total':>7}{'tgt':>6}{'inv':>6}{'amb':>6}"
-        f"{'exp':>6}{'nt':>5}{'win%':>8}{'expR':>8}{'MFE':>9}{'MAE':>9}{'bars':>7}"
+        f"{'exp':>7}{'nt':>7}{'win%':>8}{'expR':>8}{'MFE':>9}{'MAE':>9}{'bars':>7}"
     )
     lines = [title, columns, "-" * len(columns)]
     for key, stats in groups.items():
         lines.append(
             f"{key:<24}{stats.total:>7}{stats.targets:>6}{stats.invalidations:>6}"
-            f"{stats.ambiguous:>6}{stats.expired:>6}{stats.no_trade:>5}"
+            f"{stats.ambiguous:>6}{stats.expired:>7}{stats.no_trade:>7}"
             f"{stats.win_rate * 100:>7.1f}%{stats.expectancy_r:>8.2f}"
             f"{stats.average_mfe * 100:>8.2f}%{stats.average_mae * 100:>8.2f}%"
             f"{stats.average_bars_to_exit:>7.1f}"

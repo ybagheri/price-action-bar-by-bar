@@ -8,6 +8,27 @@ private:
    int m_minimumQuality;
    double m_minimumRiskReward;
 
+   // The single exit point for a NO TRADE verdict.
+   //
+   // A NO TRADE row means "the engine saw something and declined to act",
+   // so it must NOT carry a direction or price levels. Both the export
+   // schema and pab_research.SetupEvent require status=no_trade to imply
+   // direction=none: a row with status=no_trade and direction=long is
+   // rejected by the research layer, and a stale entry/target on a
+   // declined row invites a reader to treat it as a real proposal. Every
+   // early return goes through here so the two can never disagree.
+   void NoTrade(SSetupCandidate &candidate, const string reason) const
+     {
+      candidate.status    = STATUS_NO_TRADE;
+      candidate.direction = SETUP_NONE;
+      candidate.type      = SETUP_NO_TRADE;
+      candidate.entryPrice  = 0.0;
+      candidate.stopPrice   = 0.0;
+      candidate.targetPrice = 0.0;
+      candidate.riskReward  = 0.0;
+      candidate.noTradeReason = reason;
+     }
+
    void ClearCandidate(SSetupCandidate &candidate) const
      {
       candidate.active = true;
@@ -113,8 +134,8 @@ public:
 
       if(candidate.direction == SETUP_NONE || !context.valid)
         {
-         candidate.status = STATUS_NO_TRADE;
-         candidate.noTradeReason = context.valid ? "No composed context and signal-bar setup" : "Insufficient closed-bar context";
+         NoTrade(candidate, context.valid ? "No composed context and signal-bar setup"
+                                          : "Insufficient closed-bar context");
          return;
         }
 
@@ -124,18 +145,67 @@ public:
       double risk = MathAbs(candidate.entryPrice - candidate.stopPrice);
       if(risk <= 0.0)
         {
-         candidate.status = STATUS_NO_TRADE;
-         candidate.noTradeReason = "Invalid structural stop distance";
+         NoTrade(candidate, "Invalid structural stop distance");
          return;
         }
 
-      double target = longTrade ? candidate.entryPrice + 2.0 * bar.range : candidate.entryPrice - 2.0 * bar.range;
-      if(measuredMove.active && ((longTrade && measuredMove.isBullish) || (!longTrade && !measuredMove.isBullish)))
+      // A target must sit BEYOND entry in the direction of the trade, or
+      // it is not a target at all. The baseline below always does. The
+      // resistance and support clamps preserve that property because they
+      // only ever pull the target toward, but still above (long) or below
+      // (short), entry.
+      //
+      // A measured move does NOT. Its direction alignment is checked, but
+      // the projected price can still land short of entry when the pivot
+      // sits well below the current price, which is common in a failed
+      // breakout. Because reward/risk is computed from an ABSOLUTE
+      // difference, adopting such a target used to produce a healthy
+      // looking R:R and a full roomScore for a target that could never be
+      // reached. Real exports showed 6,025 of 72,188 rows with the target
+      // on the wrong side of entry.
+      double target = longTrade ? candidate.entryPrice + 2.0 * bar.range
+                                : candidate.entryPrice - 2.0 * bar.range;
+
+      bool mmUsable = measuredMove.active &&
+                      ((longTrade && measuredMove.isBullish) ||
+                       (!longTrade && !measuredMove.isBullish)) &&
+                      (longTrade ? measuredMove.targetPrice > candidate.entryPrice
+                                 : measuredMove.targetPrice < candidate.entryPrice);
+
+      if(mmUsable)
          target = measuredMove.targetPrice;
       else if(longTrade && context.resistance > candidate.entryPrice)
-         target = MathMin(target, context.resistance);
+        {
+         double clamped = MathMin(target, context.resistance);
+         // Only accept the clamp if it still leaves the target strictly
+         // beyond entry by more than one point. A resistance sitting a
+         // hair above entry otherwise produces a target that exports as
+         // the same printed price as entry, which no consumer can tell
+         // apart from a target that is not beyond entry at all. The
+         // reward/risk gate then rejects the economically-useless ones.
+         if(longTrade ? (clamped > candidate.entryPrice + _Point)
+                      : (clamped < candidate.entryPrice - _Point))
+            target = clamped;
+        }
       else if(!longTrade && context.support > 0.0 && context.support < candidate.entryPrice)
-         target = MathMax(target, context.support);
+        {
+         double clamped = MathMax(target, context.support);
+         if(longTrade ? (clamped > candidate.entryPrice + _Point)
+                      : (clamped < candidate.entryPrice - _Point))
+            target = clamped;
+        }
+
+      // Final guard, so no future branch can emit a target behind entry.
+      // One point of separation is the minimum, because the export prints
+      // five decimals and anything tighter is indistinguishable from entry.
+      bool beyondEntry = longTrade ? (target >= candidate.entryPrice + _Point)
+                                   : (target <= candidate.entryPrice - _Point);
+      if(!beyondEntry)
+        {
+         NoTrade(candidate, "No usable target beyond entry in the trade direction");
+         return;
+        }
+
       candidate.targetPrice = target;
       candidate.riskReward = MathAbs(target - candidate.entryPrice) / risk;
 
@@ -190,8 +260,7 @@ public:
          candidate.noTradeReason = "Setup evidence is below the configured quality threshold";
       else if(candidate.riskReward < m_minimumRiskReward)
         {
-         candidate.status = STATUS_NO_TRADE;
-         candidate.noTradeReason = "Reward/risk is below the configured minimum";
+         NoTrade(candidate, "Reward/risk is below the configured minimum");
         }
 
       AddReason(candidate, 1, StringFormat("Context score: %d/25", candidate.contextScore));

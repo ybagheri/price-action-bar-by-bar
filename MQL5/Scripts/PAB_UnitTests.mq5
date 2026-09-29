@@ -570,13 +570,216 @@ void TestContextAndDecision()
   }
 
 //+------------------------------------------------------------------+
+//| Test 12: Target must lie beyond entry, and NO TRADE must not      |
+//|          carry a direction or levels (Phase 16)                  |
+//|                                                                  |
+//| Found by replaying a real year of EURUSD M5 and reading the      |
+//| export, not by a failing test:                                    |
+//|   - 6,025 of 72,188 rows had the target on the wrong side of     |
+//|     entry, because a measured-move projection was adopted on     |
+//|     direction alignment alone. reward/risk then took an absolute |
+//|     value, so an unreachable target scored a healthy R:R.        |
+//|   - The resistance clamp could leave a target a hair beyond      |
+//|     entry, which exports as the same printed price as entry.     |
+//|   - Rejected setups kept direction=long and stale price levels,  |
+//|     so status=no_trade rows contradicted the export schema.      |
+//+------------------------------------------------------------------+
+void TestTargetAndNoTradeContract()
+  {
+   Print("--- TestTargetAndNoTradeContract ---");
+
+   SBarInfo bar;
+   bar.Clear();
+   bar.time = D'2026.01.01 05:00';
+   bar.open = 1.1000;
+   bar.high = 1.1010;
+   bar.low = 1.0990;
+   bar.close = 1.1005;
+   bar.range = 0.0020;
+   bar.bodyRatio = 0.25;
+   bar.clv = 0.75;
+   bar.isBullish = true;
+   bar.barType = BAR_BULL_TREND;
+   bar.strength = STRENGTH_STRONG;
+   bar.pullbackType = PB_H1;
+   bar.signalQuality = QUALITY_STRONG;
+   bar.hasFollowThrough = true;
+
+   SContextInfo context;
+   ZeroMemory(context);
+   context.valid = true;
+   context.microState = STATE_BULL_TREND;
+   context.mediumState = STATE_BULL_TREND;
+   context.bullPressure = 0.70;
+   context.bearPressure = 0.30;
+   context.nearSupport = true;
+   context.support = 1.0990;
+   context.resistance = 0.0;
+
+   SPatternInfo pattern;
+   ZeroMemory(pattern);
+   pattern.type = PATTERN_NONE;
+   SSetupCandidate candidate;
+   CDecisionEngine engine(55, 1.5);
+
+   // --- a measured move pointing the wrong way must be ignored ------
+   SMeasuredMoveInfo wrongWay;
+   ZeroMemory(wrongWay);
+   wrongWay.active = true;
+   wrongWay.isBullish = false;        // bearish projection on a long
+   wrongWay.targetPrice = 1.0900;     // far BELOW entry
+   engine.Analyze(bar, context, pattern, wrongWay, candidate);
+   Check(candidate.status != STATUS_NO_TRADE &&
+         candidate.targetPrice > candidate.entryPrice + _Point,
+         "A measured move on the wrong side of a long cannot set the target");
+
+   // --- a correctly-directed move that lands short of entry ---------
+   SMeasuredMoveInfo tooClose;
+   ZeroMemory(tooClose);
+   tooClose.active = true;
+   tooClose.isBullish = true;         // right direction...
+   tooClose.targetPrice = 1.10051;    // ...but only half a point above entry
+   engine.Analyze(bar, context, pattern, tooClose, candidate);
+   Check(candidate.status != STATUS_NO_TRADE &&
+         candidate.targetPrice > candidate.entryPrice + _Point,
+         "A measured move less than one point beyond entry cannot set the target");
+
+   // --- resistance a hair above entry must not clamp onto entry -----
+   context.resistance = candidate.entryPrice + 0.000001;
+   engine.Analyze(bar, context, pattern, wrongWay, candidate);
+   Check(candidate.status == STATUS_NO_TRADE ||
+         candidate.targetPrice > candidate.entryPrice + _Point,
+         "Resistance a hair above entry does not pull the target onto entry");
+   context.resistance = 0.0;
+
+   // --- a healthy long setup keeps valid levels ---------------------
+   engine.Analyze(bar, context, pattern, wrongWay, candidate);
+   Check(candidate.status != STATUS_NO_TRADE, "A composed long setup is not rejected");
+   Check(candidate.direction == SETUP_LONG, "The composed setup is a long");
+   Check(candidate.stopPrice < candidate.entryPrice && candidate.targetPrice > candidate.entryPrice,
+         "Long levels are strictly ordered invalidation < entry < target");
+
+   // --- a rejected setup must not leak direction or levels ----------
+   SBarInfo doji;
+   doji.Clear();
+   doji.time = D'2026.01.01 06:00';
+   doji.open = 1.1000;
+   doji.high = 1.1005;
+   doji.low = 1.0995;
+   doji.close = 1.1000;
+   doji.range = 0.0010;
+   doji.barType = BAR_DOJI;
+   doji.pullbackType = PB_NONE;
+
+   SContextInfo empty;
+   ZeroMemory(empty);
+   empty.valid = false;
+   engine.Analyze(doji, empty, pattern, wrongWay, candidate);
+   Check(candidate.status == STATUS_NO_TRADE, "Insufficient context is a NO TRADE");
+   Check(candidate.direction == SETUP_NONE,
+         "A NO TRADE carries direction none, never a leftover direction");
+   Check(candidate.entryPrice == 0.0 && candidate.stopPrice == 0.0 &&
+         candidate.targetPrice == 0.0 && candidate.riskReward == 0.0,
+         "A NO TRADE carries no price levels, so it cannot be read as a proposal");
+  }
+
+//+------------------------------------------------------------------+
+//| Test 13: A failed breakout requires that a breakout happened    |
+//|                                                                  |
+//| The old test only asked whether the current bar was below the    |
+//| swing high, which is true for nearly every bar that has not     |
+//| broken out. A real replay classified 53,329 of 72,188 events as  |
+//| SETUP_FAILED_BREAKOUT, 74 percent of the sample, which made     |
+//| every aggregate figure a restatement of one over-triggered rule. |
+//+------------------------------------------------------------------+
+void TestFailedBreakoutRequiresAnActualBreakout()
+  {
+   Print("--- TestFailedBreakoutRequiresAnActualBreakout ---");
+
+   // One confirmed swing high at 1.1050, and one swing low at 1.0980.
+   SSwingPoint swings[2];
+   swings[0].type = SWING_LOW;  swings[0].price = 1.0980;
+   swings[0].barIndex = 8;      swings[0].time = D'2026.01.01 04:40';
+   swings[1].type = SWING_HIGH; swings[1].price = 1.1050;
+   swings[1].barIndex = 4;      swings[1].time = D'2026.01.01 04:20';
+
+   SBarInfo bars[3];
+   for(int i = 0; i < 3; i++)
+     {
+      bars[i].Clear();
+      bars[i].time = D'2026.01.01 05:00' - i * 300;
+      bars[i].open = 1.1010;
+      bars[i].high = 1.1020;
+      bars[i].low = 1.1000;
+      bars[i].close = 1.1015;
+      bars[i].range = 0.0020;
+      bars[i].bodyRatio = 0.25;
+      bars[i].isBullish = true;
+      bars[i].clv = 0.75;
+      bars[i].overlapPrev = 0.2;
+     }
+
+   CContextAnalyzer analyzer;
+   SContextInfo context;
+
+   // Case A: nothing ever traded above the swing high. The current bar is
+   // bullish and below resistance, which the OLD rule called a failed
+   // breakout. It is not one.
+   analyzer.Analyze(bars, 3, swings, 2, STATE_TRADING_RANGE, ALWAYS_IN_NONE, context);
+   Check(!context.failedBullBreakout,
+         "A bullish bar under resistance is not a failed breakout");
+
+   // Case B: an earlier bar poked above 1.1050 and the current bar closed
+   // back below it. That IS a failed breakout.
+   bars[1].high = 1.1055;
+   bars[1].close = 1.1052;
+   bars[1].isBullish = true;
+   analyzer.Analyze(bars, 3, swings, 2, STATE_TRADING_RANGE, ALWAYS_IN_NONE, context);
+   Check(context.failedBullBreakout,
+         "A bar that poked above resistance and closed back below is a failed breakout");
+
+   // Case C: a poke on the current bar itself, rejected immediately.
+   bars[1].high = 1.1020;
+   bars[1].close = 1.1015;
+   bars[0].high = 1.1056;
+   bars[0].close = 1.1012;
+   analyzer.Analyze(bars, 3, swings, 2, STATE_TRADING_RANGE, ALWAYS_IN_NONE, context);
+   Check(context.failedBullBreakout,
+         "A single-bar poke above resistance rejected in the same bar counts");
+
+   // Case D: the mirror image on the downside.
+   SSwingPoint lows[2];
+   lows[0].type = SWING_HIGH; lows[0].price = 1.1050;
+   lows[0].barIndex = 8;      lows[0].time = D'2026.01.01 04:40';
+   lows[1].type = SWING_LOW;  lows[1].price = 1.0980;
+   lows[1].barIndex = 4;      lows[1].time = D'2026.01.01 04:20';
+
+   for(int i = 0; i < 3; i++)
+     {
+      bars[i].high = 1.1010;
+      bars[i].low = 1.1000;
+      bars[i].open = 1.1005;
+      bars[i].close = 1.1002;
+      bars[i].isBullish = false;
+     }
+   analyzer.Analyze(bars, 3, lows, 2, STATE_TRADING_RANGE, ALWAYS_IN_NONE, context);
+   Check(!context.failedBearBreakout,
+         "A bearish bar above support is not a failed breakdown");
+
+   bars[1].low = 1.0975;
+   bars[1].close = 1.0978;
+   analyzer.Analyze(bars, 3, lows, 2, STATE_TRADING_RANGE, ALWAYS_IN_NONE, context);
+   Check(context.failedBearBreakout,
+         "A bar that poked below support and closed back above is a failed breakdown");
+  }
+
+//+------------------------------------------------------------------+
 //| Script entry point                                                |
 //+------------------------------------------------------------------+
 void OnStart()
   {
    Print("======================================================");
    Print(" PriceActionBarByBar - Unit Test Harness (Phase 2+3)");
-   Print("======================================================");
 
    g_pass = 0; g_fail = 0;
 
@@ -592,6 +795,8 @@ void OnStart()
    TestIdempotentUpdates();
    TestRangeTransitionClearsRange();
    TestContextAndDecision();
+   TestTargetAndNoTradeContract();
+   TestFailedBreakoutRequiresAnActualBreakout();
 
    Print("------------------------------------------------------");
    PrintFormat(" RESULT: %d passed, %d failed", g_pass, g_fail);

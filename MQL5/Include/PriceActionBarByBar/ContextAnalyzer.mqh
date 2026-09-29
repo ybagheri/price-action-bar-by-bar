@@ -103,9 +103,32 @@ public:
         }
 
       SBarInfo current = bars[0];
-      out.failedBullBreakout = haveHigh && current.low < highSwing.price &&
+
+      // A FAILED breakout needs evidence that a breakout actually happened.
+      // The previous test only asked whether the current bar was below the
+      // swing high, which is true for almost every bar that has not broken
+      // out, so it labelled ordinary bullish bars under resistance as failed
+      // breakouts. A real historical export showed 53,329 of 72,188 events
+      // classified as SETUP_FAILED_BREAKOUT, 74 percent of the sample, which
+      // made every aggregate figure a restatement of one over-triggered
+      // heuristic.
+      //
+      // So the window extremes are checked as well: the recent bars must
+      // have traded beyond the level, and only then may the current bar's
+      // close back inside it count as the failure. The current bar is
+      // included in the extremes, which is what lets a single-bar poke and
+      // rejection register.
+      double windowHigh = current.high;
+      double windowLow  = current.low;
+      for(int i = 1; i < n; i++)
+        {
+         if(bars[i].high > windowHigh) windowHigh = bars[i].high;
+         if(bars[i].low  < windowLow)  windowLow  = bars[i].low;
+        }
+
+      out.failedBullBreakout = haveHigh && windowHigh > highSwing.price &&
                                current.close < highSwing.price && current.isBullish;
-      out.failedBearBreakout = haveLow && current.high > lowSwing.price &&
+      out.failedBearBreakout = haveLow && windowLow < lowSwing.price &&
                                current.close > lowSwing.price && !current.isBullish;
       FindLevels(current, out.averageRange, swings, swingCount,
                  out.support, out.resistance, out.nearSupport, out.nearResistance);

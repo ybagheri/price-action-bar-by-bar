@@ -1,0 +1,95 @@
+﻿PriceActionBarByBar - real export, Alpari MT5_3 build 6230
+Source : EURUSD,M5 Alpari-MT5-Demo, 2023-01-02 07:00 .. 2023-12-29 22:50 (72189 bars)
+Engine : 1.50 via Experts\PabEventExport.ex5, Strategy Tester, headless
+Cost model: NONE. Spread, slippage and commission are not included anywhere.
+
+72188 events, 72175 bars, grouped by setup
+group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
+--------------------------------------------------------------------------------------------------------
+breakout_follow_through    2178  1112  1051    15      0      0   51.1%   -0.06    0.04%   -0.04%   10.8
+failed_breakout           12654  7003  5163   486      2      0   55.4%    0.00    0.02%   -0.02%    2.4
+no_trade                  40414     0     0     0      0  40414    0.0%    0.00    0.00%    0.00%    0.0
+second_entry               5646  2859  2506   279      2      0   50.7%    0.04    0.02%   -0.02%    1.9
+trend_pullback            11296  4310  6486   498      2      0   38.2%    0.02    0.03%   -0.02%    2.8
+
+win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
+
+72188 events, 72175 bars, grouped by status
+group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
+--------------------------------------------------------------------------------------------------------
+confirmed                   445   134   309     2      0      0   30.1%   -0.12    0.06%   -0.05%   20.6
+no_trade                  40414     0     0     0      0  40414    0.0%    0.00    0.00%    0.00%    0.0
+possible                   3186   854  2278    53      1      0   26.8%    0.01    0.03%   -0.03%    4.3
+probable                   1678   454  1204    20      0      0   27.1%    0.00    0.04%   -0.03%    9.9
+weak                      26465 13842 11415  1203      5      0   52.3%    0.02    0.02%   -0.02%    2.1
+
+win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
+
+walk-forward: all, 72188 events, 72175 bars, 4 folds
+walk-forward per-fold results
+Setup outcome report
+group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
+--------------------------------------------------------------------------------------------------------
+fold0-in_sample           18047  3880  3870   331      0   9966   48.0%   -0.01    0.03%   -0.03%    3.2
+fold1-out_of_sample       18047  3822  3735   330      0  10160   48.5%    0.04    0.02%   -0.02%    2.7
+fold2-in_sample           18047  3716  3837   302      0  10192   47.3%    0.02    0.02%   -0.02%    3.2
+fold3-out_of_sample       18047  3866  3764   315      6  10096   48.7%    0.00    0.02%   -0.02%    3.0
+
+win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
+
+decision-time span per fold
+  fold0-in_sample             2023-01-02 07:05:00 .. 2023-03-31 12:15:00
+  fold1-out_of_sample         2023-03-31 12:20:00 .. 2023-06-30 08:15:00
+  fold2-in_sample             2023-06-30 08:20:00 .. 2023-09-29 04:10:00
+  fold3-out_of_sample         2023-09-29 04:15:00 .. 2023-12-29 22:50:00
+
+pooled comparison
+Setup outcome report
+group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
+--------------------------------------------------------------------------------------------------------
+in_sample (pooled)        36094  7596  7707   633      0  20158   47.7%    0.00    0.03%   -0.03%    3.2
+out_of_sample (pooled)    36094  7688  7499   645      6  20256   48.6%    0.02    0.02%   -0.02%    2.9
+
+win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
+
+expectancy degradation (OOS - IS): +0.01R
+win-rate degradation  (OOS - IS): +0.9 pp
+reliable: yes
+Degradation is a measurement of this sample, not a profitability claim. Outcomes may resolve using bars past a fold boundary; decisions never do. Spread, slippage, and commission are not included.
+
+
+====================================================
+ HONEST READING - what this sample does and does not show
+====================================================
+The engine has NO measurable edge on this sample. Every resolved expectancy
+sits between -0.06R and +0.04R, and win rates sit between 38 percent and
+55 percent. Walk-forward degradation is +0.01R and +0.9 percentage points,
+which means the in-sample and out-of-sample halves performed the same, not
+that either was good.
+
+These are descriptive counts of one symbol, one timeframe, one year, and one
+parameter set. They are NOT a profitability claim and must not be read as
+one. Specifically excluded: spread, slippage, and commission, which the
+export does not carry. Realistic costs on EURUSD M5 would consume several
+times the measured per-trade edge, so the net result is worse than shown,
+not better.
+
+Two structural observations that matter more than the numbers above:
+
+1. The setups are micro scalps. Average bars-to-exit is 1.9 to 2.8 for
+   every setup type except breakout_follow_through at 10.8. The stop is
+   the signal bar's own extreme plus 0.25 bar range, and the target is the
+   nearest resistance or support. An event that resolves within two bars
+   cannot distinguish skill from noise, and the ambiguous counts (486 of
+   12,654 for failed_breakout) show how often both levels are touched in
+   the same bar, which is unresolvable at M5.
+
+2. One year of a single symbol on a single timeframe is not a study. The
+   roadmap item for multi-instrument and multi-regime validation is still
+   open, and this run is the first real evidence the measurement pipeline
+   works, not evidence that the rules work.
+
+What this run DOES establish: the export, the loader, the outcome
+evaluator, the grouping, and the walk-forward split now run end to end on
+real broker history, and every figure above is reproducible from the two
+CSVs with one command.
