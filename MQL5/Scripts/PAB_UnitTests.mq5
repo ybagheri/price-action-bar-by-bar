@@ -233,12 +233,116 @@ void TestPatternDetection()
    swings[2].type = SWING_LOW;  swings[2].price = 1.0985; swings[2].barIndex = 4; swings[2].time = 0;
    swings[3].type = SWING_HIGH; swings[3].price = 1.1052; swings[3].barIndex = 6; swings[3].time = 0;
 
-   CPatternDetector pd(0.0015, 0.15);
+   CPatternDetector pd(0.0015, 0.00020, 300);
    bool found = pd.AnalyzeSwings(swings, 4);
    Check(found, "Pattern detector finds a pattern in near-equal swing highs");
 
    SPatternInfo p = pd.LastPattern();
    Check(p.type == PATTERN_DOUBLE_TOP, "Near-equal consecutive swing highs classified as PATTERN_DOUBLE_TOP");
+  }
+
+//+------------------------------------------------------------------+
+//| Test 5b: Pattern slopes are normalized and stable               |
+//|                                                                  |
+//| The triangle branch used to compare a raw price-per-bar-index    |
+//| slope against a 0.15 threshold. On a 1.10 instrument that slope  |
+//| is ~0.0025, so the branch was unreachable and PATTERN_TRIANGLE   |
+//| could never be produced. These cases pin the replacement:        |
+//| convergence is measured as a fraction of price per bar, keyed   |
+//| off swing TIMESTAMPS.                                            |
+//+------------------------------------------------------------------+
+void TestNormalizedPatternSlopes()
+  {
+   Print("--- TestNormalizedPatternSlopes ---");
+
+   const int SECS_PER_BAR = 300;   // M5
+   const double CONVERGENCE_MIN = 0.00020;
+
+   // --- the helper itself -------------------------------------------
+   datetime tOld = D'2026.01.01 00:00';
+   datetime tNew = tOld + 10 * SECS_PER_BAR;
+
+   double rising = CPabUtils::NormalizedSlopePerBar(tOld, 1.1000, tNew, 1.1100, SECS_PER_BAR);
+   Check(rising > 0.0, "Normalized slope is positive when price rose over time");
+
+   double falling = CPabUtils::NormalizedSlopePerBar(tOld, 1.1000, tNew, 1.0900, SECS_PER_BAR);
+   Check(falling < 0.0, "Normalized slope is negative when price fell over time");
+
+   Check(MathAbs(rising + falling) < 1e-12,
+         "A symmetric move up and down produces equal-magnitude slopes");
+
+   // Fraction of price per bar: 0.0100 off a 1.1000 reference is +0.9091%
+   // spread over 10 bars, so the expected slope is 0.00090909...
+   Check(MathAbs(rising - (0.0100 / 1.1000) / 10.0) < 1e-12,
+         "Slope equals price fraction divided by bars elapsed");
+
+   // The same +0.9091% move at a 3400 reference, so the geometry really is
+   // identical once prices are expressed as a fraction of their own scale.
+   double scaled = CPabUtils::NormalizedSlopePerBar(tOld, 3400.0, tNew, 3400.0 * 1.1100 / 1.1000, SECS_PER_BAR);
+   Check(MathAbs(scaled - rising) < 1e-12,
+         "Identical percentage geometry gives an identical slope at 1.10 and at 3400");
+
+   Check(CPabUtils::NormalizedSlopePerBar(tOld, 1.1000, tOld, 1.1100, SECS_PER_BAR) == 0.0,
+         "Two swings at the same timestamp have no measurable slope");
+   Check(CPabUtils::NormalizedSlopePerBar(tOld, 1.1000, tOld + 60, 1.1100, SECS_PER_BAR) == 0.0,
+         "Two swings less than one bar apart have no measurable slope");
+   Check(CPabUtils::NormalizedSlopePerBar(tOld, 1.1000, tNew, 1.1100, 0) == 0.0,
+         "A zero bar length yields no slope instead of a division by zero");
+   Check(CPabUtils::NormalizedSlopePerBar(tOld, 0.0, tNew, 1.1100, SECS_PER_BAR) == 0.0,
+         "A non-positive reference price yields no slope");
+
+   // --- a converging structure on EURUSD-scale prices ---------------
+   // highs fall, lows rise, and neither pair is close enough to be a
+   // double top/bottom, so the only reachable verdict is a triangle.
+   datetime t0 = D'2026.01.01 12:00';
+   SSwingPoint eurusd[4];
+   eurusd[0].type = SWING_HIGH; eurusd[0].price = 1.1020; eurusd[0].barIndex = 0; eurusd[0].time = t0;
+   eurusd[1].type = SWING_LOW;  eurusd[1].price = 1.1010; eurusd[1].barIndex = 1; eurusd[1].time = t0 + 60;
+   eurusd[2].type = SWING_HIGH; eurusd[2].price = 1.1060; eurusd[2].barIndex = 9; eurusd[2].time = t0 - 2940;
+   eurusd[3].type = SWING_LOW;  eurusd[3].price = 1.0980; eurusd[3].barIndex = 10; eurusd[3].time = t0 - 3000;
+
+   CPatternDetector tri(0.0015, CONVERGENCE_MIN, SECS_PER_BAR);
+   tri.AnalyzeSwings(eurusd, 4);
+   SPatternInfo triPattern = tri.LastPattern();
+   Check(triPattern.type == PATTERN_TRIANGLE,
+         "Converging highs and lows are now classified as PATTERN_TRIANGLE");
+
+   // --- the same percentage geometry at gold-scale prices ------------
+   const double K = 3400.0 / 1.10;
+   SSwingPoint gold[4];
+   gold[0].type = eurusd[0].type; gold[0].price = 1.1020 * K; gold[0].barIndex = 0; gold[0].time = t0;
+   gold[1].type = eurusd[1].type; gold[1].price = 1.1010 * K; gold[1].barIndex = 1; gold[1].time = t0 + 60;
+   gold[2].type = eurusd[2].type; gold[2].price = 1.1060 * K; gold[2].barIndex = 9; gold[2].time = t0 - 2940;
+   gold[3].type = eurusd[3].type; gold[3].price = 1.0980 * K; gold[3].barIndex = 10; gold[3].time = t0 - 3000;
+
+   CPatternDetector triGold(0.0015, CONVERGENCE_MIN, SECS_PER_BAR);
+   triGold.AnalyzeSwings(gold, 4);
+   Check(triGold.LastPattern().type == PATTERN_TRIANGLE,
+         "The same convergence is detected at 3400-scale prices, so the threshold is scale-free");
+
+   // --- diverging structure must NOT be called a triangle -----------
+   SSwingPoint diverging[4];
+   diverging[0].type = SWING_HIGH; diverging[0].price = 1.1100; diverging[0].barIndex = 0; diverging[0].time = t0;
+   diverging[1].type = SWING_LOW;  diverging[1].price = 1.0940; diverging[1].barIndex = 1; diverging[1].time = t0 + 60;
+   diverging[2].type = SWING_HIGH; diverging[2].price = 1.1060; diverging[2].barIndex = 9; diverging[2].time = t0 - 2940;
+   diverging[3].type = SWING_LOW;  diverging[3].price = 1.0980; diverging[3].barIndex = 10; diverging[3].time = t0 - 3000;
+
+   CPatternDetector div(0.0015, CONVERGENCE_MIN, SECS_PER_BAR);
+   bool divFound = div.AnalyzeSwings(diverging, 4);
+   Check(!divFound || div.LastPattern().type != PATTERN_TRIANGLE,
+         "Widening structure is not reported as a converging triangle");
+
+   // --- swings with no time separation cannot claim convergence ------
+   SSwingPoint noTime[4];
+   noTime[0].type = SWING_HIGH; noTime[0].price = 1.1020; noTime[0].barIndex = 0; noTime[0].time = 0;
+   noTime[1].type = SWING_LOW;  noTime[1].price = 1.1010; noTime[1].barIndex = 1; noTime[1].time = 0;
+   noTime[2].type = SWING_HIGH; noTime[2].price = 1.1060; noTime[2].barIndex = 9; noTime[2].time = 0;
+   noTime[3].type = SWING_LOW;  noTime[3].price = 1.0980; noTime[3].barIndex = 10; noTime[3].time = 0;
+
+   CPatternDetector untimed(0.0015, CONVERGENCE_MIN, SECS_PER_BAR);
+   bool untimedFound = untimed.AnalyzeSwings(noTime, 4);
+   Check(!untimedFound || untimed.LastPattern().type != PATTERN_TRIANGLE,
+         "Swings with no time separation are not reported as converging");
   }
 
 //+------------------------------------------------------------------+
@@ -471,7 +575,7 @@ void TestContextAndDecision()
 void OnStart()
   {
    Print("======================================================");
-   Print(" PriceActionBarByBar — Unit Test Harness (Phase 2+3)");
+   Print(" PriceActionBarByBar - Unit Test Harness (Phase 2+3)");
    Print("======================================================");
 
    g_pass = 0; g_fail = 0;
@@ -481,6 +585,7 @@ void OnStart()
    TestSwingDetection();
    TestTradingRangeDetection();
    TestPatternDetection();
+   TestNormalizedPatternSlopes();
    TestBreakoutAndClimax();
    TestAlwaysIn();
    TestMeasuredMove();

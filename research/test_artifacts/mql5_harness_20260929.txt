@@ -1,0 +1,129 @@
+======================================================
+ PriceActionBarByBar - Unit Test Harness (Phase 2+3)
+======================================================
+Source   : Alpari MT5_3 (build 6230), EURUSD,H1
+Run at   : 2026-09-29 07:38:21
+Raw      : <terminal data>\MQL5\Logs\20260929.log
+Provenance: transcribed verbatim from the MT5 Experts journal.
+           At the time of archiving the terminal was still running and the
+           07:38 run had not yet been flushed to the on-disk journal, so
+           the authoritative text is the journal view quoted below. The
+           EARLIER runs of the same day (07:30:58, 07:31:04, 07:31:29,
+           07:31:41) ARE present on disk and are summarised at the foot of
+           this file for comparison.
+Note     : [PASS]/[FAIL] lines are the only journal lines the harness emits.
+
+======================================================
+ FINAL RUN - 54 passed, 0 failed
+======================================================
+Post-run change: PatternDetector.mqh and PriceActionBarByBar.mq5 were edited
+at 07:42, AFTER this run, to restore one leading space of alignment that the
+Phase 14 edits had dropped. Those edits are whitespace-only; the harness
+source PAB_UnitTests.mq5 was last written at 07:32, before the run, and is
+unchanged. Both targets recompile at 0 errors, 0 warnings. No behavioural
+change was made after the run, but the run predates the whitespace fix, so a
+future change to either file should be followed by a re-run.
+
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	======================================================
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	 PriceActionBarByBar - Unit Test Harness (Phase 2+3)
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	======================================================
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestBarClassification ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Last bar (strong bearish close) classified as BEAR_TREND
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Synthetic inside bar is classified correctly
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bar has non-zero range
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Upper and lower wick geometry is non-negative
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Previous-bar overlap is normalized to 0..1
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bar strength is assigned a defined classification
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Consecutive bear run is tracked
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Classifier stored all 5 bars
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestPullbackSequence ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bar that sets a marginal new leg high is not a pullback bar
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] First pullback bar after new high labeled H1
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Second consecutive pullback bar labeled H2
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] H2 low is shallower (higher) than H1 low in this synthetic leg
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bar that makes a fresh new high resets pullback state to NONE
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestSwingDetection ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] A swing high was detected in the synthetic peak
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Swing high price matches the synthetic peak (1.1040)
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] A swing low was detected in the synthetic trough
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestTradingRangeDetection ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Choppy overlapping series scored as STATE_TRADING_RANGE
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Trading range info reports active=true
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestPatternDetection ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Pattern detector finds a pattern in near-equal swing highs
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Near-equal consecutive swing highs classified as PATTERN_DOUBLE_TOP
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestNormalizedPatternSlopes ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Normalized slope is positive when price rose over time
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Normalized slope is negative when price fell over time
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] A symmetric move up and down produces equal-magnitude slopes
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Slope equals price fraction divided by bars elapsed
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Identical percentage geometry gives an identical slope at 1.10 and at 3400
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Two swings at the same timestamp have no measurable slope
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Two swings less than one bar apart have no measurable slope
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] A zero bar length yields no slope instead of a division by zero
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] A non-positive reference price yields no slope
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Converging highs and lows are now classified as PATTERN_TRIANGLE
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] The same convergence is detected at 3400-scale prices, so the threshold is scale-free
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Widening structure is not reported as a converging triangle
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Swings with no time separation are not reported as converging
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestBreakoutAndClimax ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Strong fresh-high bar with favorable close flagged as breakout bar
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Unusually large-range bar with a weak close flagged as climax/exhaustion
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestAlwaysIn ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Always-In starts at NONE with no structure yet
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Close above the known swing high bootstraps ALWAYS_IN_LONG
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Close below the known swing low flips state to ALWAYS_IN_SHORT
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] State holds ALWAYS_IN_SHORT when no structural break occurs
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestMeasuredMove ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Measured move detector finds a projection from a clean 3-swing sequence
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Rising leg1 (low->high) projects a bullish measured move
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Target price equals pivot + leg1 size (1.10800)
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestIdempotentUpdates ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Duplicate classifier update does not duplicate the bar
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Duplicate swing update does not duplicate the confirmed swing
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestRangeTransitionClearsRange ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Low-displacement non-overlapping bars scored as STATE_TRANSITION
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Transition state clears stale trading-range data
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	--- TestContextAndDecision ---
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Context analyzer produces a valid closed-bar snapshot
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bullish micro context is classified from displacement
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bull pressure exceeds bear pressure in bull context
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Bullish H2 context produces a long candidate
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] H2 is classified as a second-entry setup
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Long candidate exposes logical invalidation and target levels
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Strong composed context passes configured quality and risk/reward gates
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	  [PASS] Isolated doji without composed setup returns NO TRADE
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	------------------------------------------------------
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	 RESULT: 54 passed, 0 failed
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	======================================================
+2026.09.29 07:38:21.484	PAB_UnitTests (EURUSD,H1)	PriceActionBarByBar unit tests: all 54 passed.
+
+======================================================
+ EARLIER RUNS OF 2026-09-29 (present in the on-disk journal)
+======================================================
+These ran the first version of TestNormalizedPatternSlopes and are kept
+because they record the three fixture-arithmetic defects that were found
+and fixed. The engine itself was correct in all three cases; the expected
+values written into the assertions were wrong.
+
+  07:30:58.088   RESULT: 51 passed, 3 failed
+  07:31:04.903   RESULT: 51 passed, 3 failed
+  07:31:29.756   RESULT: 51 passed, 3 failed
+  07:31:41.088   RESULT: 51 passed, 3 failed
+
+The three failures in each of those runs were:
+
+  [FAIL] A symmetric move up and down produces equal-magnitude slopes
+      Cause: asserted MathAbs(rising - falling) when the property is
+             equal magnitude, i.e. MathAbs(rising + falling).
+  [FAIL] Slope equals price fraction divided by bars elapsed
+      Cause: expected 0.001, which silently treated the reference price as
+             1.0. The correct value is (0.0100 / 1.1000) / 10.
+  [FAIL] Identical percentage geometry gives an identical slope at 1.10 and at 3400
+      Cause: used a 3400 -> 3427 move (+0.794%) against a 1.10 -> 1.11
+             move (+0.909%). Fixed to 3400 * 1.1100 / 1.1000.
+
+The four behavioural assertions added in the same phase - triangle
+detection at 1.10 scale, triangle detection at 3400 scale, rejection of
+widening structure, and rejection of untimed swings - passed in every run,
+including these failing ones.

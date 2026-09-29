@@ -76,11 +76,38 @@ public:
       return(sum / n);
      }
 
-   //--- linear slope through two (x,y) points, x expressed in bar-index units
-   static double Slope(const int x1, const double y1, const int x2, const double y2)
+   //--- slope of a price series, normalized so thresholds can be shared -----
+   // The x-axis is BAR TIMESTAMP, never a series index. A series index
+   // shifts every time a new bar arrives and restarts on a history reload,
+   // so two swings confirmed at different moments would produce different
+   // slopes for the same geometry. Timestamps are stable.
+   //
+   // The y-axis is divided by the reference price, so the result is a
+   // dimensionless "fraction of price per bar". That is what makes one
+   // threshold meaningful on EURUSD at 1.10 and on gold at 3400, and on M5
+   // as well as H1. A raw price-per-bar slope is not: the old
+   // price-per-index slope produced ~0.0025 on a 1.10 instrument, so a
+   // 0.15 threshold could never be met and triangles never fired at all.
+   //
+   // Sign convention: positive means the series rose as time advanced, i.e.
+   // toward the newer point. t1/y1 is the OLDER point, t2/y2 the NEWER one.
+   // Returns 0.0 when the two points cannot be separated on the time axis or
+   // the reference price is not positive, because "no measurable slope" must
+   // never satisfy a convergence threshold.
+   static double NormalizedSlopePerBar(const datetime t1, const double y1,
+                                       const datetime t2, const double y2,
+                                       const int secondsPerBar)
      {
-      if(x1 == x2)
+      if(secondsPerBar <= 0)
          return(0.0);
-      return((y2 - y1) / (double)(x2 - x1));
+      double span = (double)(t2 - t1);
+      if(span <= 0.0)
+         return(0.0);
+      double barsApart = span / (double)secondsPerBar;
+      if(barsApart < 1.0)
+         return(0.0);
+      if(y1 <= 0.0)
+         return(0.0);
+      return((y2 - y1) / y1) / barsApart;
      }
   };

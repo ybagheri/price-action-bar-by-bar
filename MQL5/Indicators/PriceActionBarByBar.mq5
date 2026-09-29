@@ -23,7 +23,7 @@
 //+------------------------------------------------------------------+
 #property copyright "ybagheri"
 #property link      "https://github.com/ybagheri/price-action-bar-by-bar"
-#property version   "1.20"
+#property version   "1.40"
 #property indicator_chart_window
 #property indicator_buffers 1
 #property indicator_plots   1
@@ -63,7 +63,7 @@ input int    InpATRPeriod          = 14;     // ATR period (only used when InpUs
 
 input group "=== Pattern Detection ==="
 input double InpSwingSimilarityPct = 0.15;   // % tolerance for "equal" swing highs/lows (double top/bottom)
-input double InpConvergenceMin     = 0.15;   // Minimum slope convergence to flag triangle/wedge
+input double InpConvergenceMin     = 0.00020; // Min convergence, as a FRACTION OF PRICE PER BAR (0.00020 = 0.020%/bar)
 
 input group "=== Decision Support ==="
 input int    InpMinimumQuality     = 55;
@@ -172,7 +172,8 @@ int OnInit()
                                        InpFeatureLookback, InpLargeRangeMult, InpSmallRangeMult, InpStrongBodyRatio);
    g_swings     = new CSwingDetector(InpFractalLegs);
    g_range      = new CTradingRangeDetector(InpRegimeLookback, InpOverlapThreshold, InpDisplaceThreshold);
-   g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin);
+   g_patterns   = new CPatternDetector(InpSwingSimilarityPct / 100.0, InpConvergenceMin,
+                                       (int)PeriodSeconds(_Period));
    g_alwaysIn   = new CAlwaysInTracker();
    g_measuredMove = new CMeasuredMoveDetector();
    g_context    = new CContextAnalyzer();
@@ -208,7 +209,8 @@ int OnInit()
                    "event_id", "direction", "setup_type", "status",
                    "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
                    "entry", "invalidation", "target", "risk_reward", "quality",
-                   "engine_version", "parameter_version");
+                   "engine_version", "parameter_version",
+                   "symbol", "period");
       else
          FileSeek(g_eventFileHandle, 0, SEEK_END);
      }
@@ -426,7 +428,8 @@ int OnCalculate(const int rates_total,
                       DoubleToString(g_candidate.targetPrice, _Digits),
                       DoubleToString(g_candidate.riskReward, 4),
                       g_candidate.qualityScore,
-                      "1.30", parameterVersion);
+                      PAB_ENGINE_VERSION, parameterVersion,
+                      _Symbol, PeriodLabel(_Period));
            }
         }
      }

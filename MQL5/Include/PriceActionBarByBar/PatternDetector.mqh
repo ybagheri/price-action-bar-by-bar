@@ -24,8 +24,9 @@
 class CPatternDetector
   {
 private:
-   double            m_similarityPct;   // e.g. 0.001 = 0.1% price tolerance for "equal" swings
-   double            m_convergenceMin;  // minimum slope convergence (fraction) to call a triangle/wedge
+   double            m_similarityPct;   // e.g. 0.0015 = 0.15% price tolerance for "equal" swings
+   double            m_convergenceMin;  // minimum slope convergence (fraction of price per bar)
+   int               m_secondsPerBar;   // chart period length, used to turn timestamps into bars
    SPatternInfo      m_lastPattern;
 
    bool NearlyEqual(const double a, const double b) const
@@ -36,12 +37,24 @@ private:
       return(MathAbs(a - b) / avg <= m_similarityPct);
      }
 
+   // Slope of the two most recent same-type swings, older point first.
+   // Returns 0.0 when the swings cannot be separated in time, so a pair of
+   // swings that is really a single level is never read as convergence.
+   double SwingSlope(const SSwingPoint &older, const SSwingPoint &newer) const
+     {
+      return(CPabUtils::NormalizedSlopePerBar(older.time, older.price,
+                                              newer.time, newer.price,
+                                              m_secondsPerBar));
+     }
+
 public:
                      CPatternDetector(const double similarityPct = 0.0015,
-                                       const double convergenceMin = 0.15)
+                                       const double convergenceMin = 0.00020,
+                                       const int secondsPerBar = 300)
      {
       m_similarityPct = similarityPct;
       m_convergenceMin = convergenceMin;
+      m_secondsPerBar = (secondsPerBar > 0 ? secondsPerBar : 1);
       Reset();
      }
 
@@ -115,10 +128,12 @@ public:
             return(true);
            }
 
-         // --- Triangle: highs slope down AND lows slope up (converging) --
-         double highSlope = CPabUtils::Slope(highs[1].barIndex, highs[1].price, highs[0].barIndex, highs[0].price);
-         double lowSlope  = CPabUtils::Slope(lows[1].barIndex,  lows[1].price,  lows[0].barIndex,  lows[0].price);
-         if(highSlope < -m_convergenceMin && lowSlope > m_convergenceMin)
+          // --- Triangle: highs slope down AND lows slope up (converging) --
+          // Slopes are normalized to a fraction of price per bar, so the
+          // same convergenceMin is meaningful on any symbol or timeframe.
+          double highSlope = SwingSlope(highs[1], highs[0]);
+          double lowSlope  = SwingSlope(lows[1], lows[0]);
+          if(highSlope < -m_convergenceMin && lowSlope > m_convergenceMin)
            {
             m_lastPattern.type = PATTERN_TRIANGLE;
             m_lastPattern.startTime = MathMin(highs[1].time, lows[1].time);
