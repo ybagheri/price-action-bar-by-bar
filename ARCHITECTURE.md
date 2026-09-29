@@ -36,14 +36,24 @@ A decision uses only completed bars. Fractal events are delayed by the configure
 - `bar_close_time`
 - `confirmed_at`
 - `decision_time`
+- `symbol`
+- `period`
 
 The research package rejects events where confirmation occurs after the decision or the decision occurs before bar close.
 
 ## Platform split
 
 - MQL5: canonical logic, visualization, and event production.
-- Python: schema/timing validation and outcome measurement.
+- Python: schema/timing validation, outcome measurement, walk-forward
+  separation, and cross-instrument grouping.
 - NinjaTrader: secondary unverified adapter; shared fixtures are required before claiming parity.
+
+## Measured quantities
+
+Any value compared across symbols or timeframes is normalized to a fraction or
+a ratio. Pattern slopes are a fraction of price per bar, computed from swing
+timestamps rather than series indexes, so one threshold holds on EURUSD and on
+gold and does not drift when a history reload shifts every index.
 
 ## Performance
 

@@ -1,7 +1,7 @@
-# Handoff Summary - 2026-09-28
+# Handoff Summary - 2026-09-29
 
-State of the repository at commit `9eede75` (Phases 11 and 12), intended as a
-cold-start brief for whoever continues this work.
+State of the repository after Phases 13 and 14, intended as a cold-start brief
+for whoever continues this work.
 
 ## What this project is
 
@@ -17,37 +17,48 @@ be labelled separately.
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| MQL5 indicator compile | 0 errors, 0 warnings | MetaEditor log |
-| MQL5 harness compile | 0 errors, 0 warnings | MetaEditor log |
-| MQL5 harness runtime | 41 passed, 0 failed | `research/test_artifacts/mql5_harness_20260928.txt` |
-| Python tests | 27 passed | `pytest` and `unittest` both agree |
+| MQL5 indicator compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
+| MQL5 harness compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
+| MQL5 harness runtime | 54 passed, 0 failed | `research/test_artifacts/mql5_harness_20260929.txt` |
+| Python tests | 46 passed | `pytest` and `unittest` both agree |
 | Python `compileall` | clean | `research/` |
 
-The MQL5 harness has now actually been executed in MT5 (Alpari MT5_2, EURUSD
-M5). This closes the long-standing "compiled but never run" gap. Do not report
+Runtime was on Alpari MT5_3 build 6230, EURUSD H1, 2026-09-29. Do not report
 any assertion as passing unless a runtime log shows it.
 
 ## What was done in the last two phases
 
-**Phase 11 - harness runtime (`62ccd55`).** Running the harness surfaced two
-failing assertions. Both were test fixture defects, not engine defects:
+**Phase 13 - walk-forward and multi-instrument validation.** Added
+`research/pab_research/validation.py`: chronological splitting of the event
+stream into contiguous, non-overlapping, alternating in-sample / out-of-sample
+blocks, pooled IS vs OOS comparison, and an expectancy and win-rate
+degradation gap. Also `group_by_instrument` and `instrument_walk_forward`.
+Exposed as `--walk-forward N`, `--walk-forward-per-instrument`, and
+`--group instrument`.
 
-- The pullback fixture expected `H1` on the bar whose high (1.1058) still
-  exceeded the prior leg extreme (1.1057). That bar correctly resets the leg,
-  so the first pullback is the following bar.
-- The context fixture was built oldest-first, but `CContextAnalyzer` consumes
-  series order (index 0 = newest closed bar). Inverted input made net move
-  negative, so bullish displacement was never detected.
+**Phase 14 - normalized pattern slopes, and two provenance bugs.** Three real
+defects, all found by reading rather than by a failing test:
 
-**Phase 12 - aggregate reporting (`9eede75`).** Added win rate, expectancy in
-R, MFE/MAE, and bars-to-exit grouped by setup type or engine status, plus a
-runnable `python -m pab_research EVENTS.csv BARS.csv` entry point.
+1. `PATTERN_TRIANGLE` was unreachable. The triangle branch compared a raw
+   price-per-bar-index slope against `InpConvergenceMin = 0.15`; on a 1.10
+   instrument that slope is about 0.0025, so the condition could never hold.
+2. Pattern slopes read `SSwingPoint.barIndex`, a series position that shifts
+   every time a new bar arrives and restarts on a history reload, so two swings
+   confirmed at different moments could yield different slopes for the same
+   geometry.
+3. The event export wrote engine version `1.30` while the compiled indicator
+   reported `#property version "1.20"`. Since archived research results are
+   keyed off that string, the two drifting apart is a provenance defect, not a
+   cosmetic one.
 
-Two genuine bugs were fixed along the way: a UTF-8 BOM on the first CSV column
-name made the loader raise `KeyError: event_id` (loaders now read
-`utf-8-sig`), and `python -m pab_research.report` emitted a `runpy` warning
-because the package imported the module it was executing (moved to
-`__main__.py`).
+Fixes: `CPabUtils::NormalizedSlopePerBar` measures a fraction of price per bar
+from swing **timestamps**; `CPatternDetector` takes the chart period and uses
+it; `InpConvergenceMin` now defaults to `0.00020` and means 0.020%/bar. Engine
+version moved to a single `PAB_ENGINE_VERSION` macro used by the export, with
+`#property version` kept in step at `1.40`. The export also gained `symbol` and
+`period` columns, without which multi-instrument grouping has nothing to group
+on; old files still load and those rows report as `unspecified` rather than
+being dropped.
 
 ## Conventions that matter
 
@@ -57,6 +68,10 @@ because the package imported the module it was executing (moved to
   Route OHLC fixtures through `BuildSeries` in the harness.
 - **Closed bars only.** Forming bar index 0 cannot produce a confirmed
   decision. Analyzer updates are idempotent by bar timestamp.
+- **Series indexes are not stable.** Anything that must survive across bars —
+  slopes, pattern spans, fold boundaries — keys off timestamps.
+- **Compare like with like.** A raw price quantity is not comparable across
+  symbols or timeframes. Normalize to a fraction or a ratio first.
 - **Separation of concerns.** Detection stays separate from decision, risk,
   explanation, and rendering.
 - **No unverifiable claims.** No assertion passes without a log. No win rate
@@ -65,44 +80,51 @@ because the package imported the module it was executing (moved to
 
 ## Honest gaps
 
-- The reporting tool has **never been run against a real event export**. It
-  has only been exercised on synthetic fixtures. There is no measured win rate
-  or expectancy for this project, and none should be implied.
+- **The reporting and walk-forward tooling has still never been run against a
+  real event export.** It has been exercised on synthetic fixtures and on a
+  clearly labelled synthetic CLI sample. There is no measured win rate or
+  expectancy for this project, and none should be implied.
 - Indicator lifecycle (duplicate ticks, history reload) has no runtime test.
-- No Strategy Tester run, no broker-spread modeling, no walk-forward, no
-  multi-instrument study.
+- No Strategy Tester run, no broker-spread modeling, no multi-instrument study.
 - Higher-timeframe and session context are not implemented; single timeframe only.
-- The NinjaTrader port has never been compiled and is not at parity.
+- The NinjaTrader port has never been compiled, is not at parity, and its slope
+  math still hardcodes adjacent x coordinates, which is dimensionally wrong.
+- Harness execution still needs a human to open a chart and run the script.
+  A `/config:` startup file is not a substitute: if a terminal instance is
+  already running, the config is forwarded to it and ignored.
 
 ## Next steps
 
-`ROADMAP.md` holds the authoritative ordered list. The immediate next item
-requires a human in front of MT5:
+`ROADMAP.md` holds the authoritative ordered list. In order:
 
-1. **Run the report against a real export.** Set `InpExportEvents=true` on
-   historical/replay data, let MT5 write the event CSV, export matching bar
+1. **Run the tooling against a real export.** Set `InpExportEvents=true` on
+   historical or replay data, let MT5 write the event CSV, export matching bar
    history as CSV with `open_time`/`high`/`low`, then run
-   `python -m pab_research events.csv bars.csv`. Archive the output the way
-   the harness output was archived. This is the only way the reporting work
-   becomes evidence rather than a tool.
-2. Broader historical and multi-instrument validation with walk-forward
-   separation.
-3. Configurable higher-timeframe context using closed HTF bars.
-4. Session/prior-day/overnight levels with broker-time assumptions.
-5. Replace index-based pattern slopes with stable normalized measurements.
-6. Shared fixtures and NinjaTrader 8 compilation.
-7. MQL5 indicator lifecycle integration tests.
+   `python -m pab_research events.csv bars.csv --walk-forward 4`. Archive the
+   output the way the harness output was archived. Do this across more than
+   one symbol so the instrument grouping and the per-instrument walk-forward
+   are exercised on real data rather than fixtures.
+2. Configurable higher-timeframe context using closed HTF bars.
+3. Session/prior-day/overnight levels with broker-time assumptions.
+4. Apply the timestamp-normalized slope to NinjaTrader and compile it.
+5. MQL5 indicator lifecycle integration tests.
+6. Automate the harness run so evidence does not depend on a human.
 
 ## Environment notes
 
-- Local repo: `D:\Projects\price-action-bar-by-bar`, remote
+- Local repo: `E:\price-action-bar-by-bar`, remote
   `git@github.com:ybagheri/price-action-bar-by-bar.git`, default branch `main`.
 - Compile check used in this session:
-  `& "C:\Program Files\Alpari MT5_2\metaeditor64.exe" /compile:"<file>.mq5" /log:"<log>"`
+  `& "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\MetaEditor64.exe" /compile:"<file>.mq5" /log:"<log>"`
   MetaEditor writes UTF-16 logs; confirm `0 errors, 0 warnings` from the log
   text, not from the process exit code.
 - MQL5 sources must be copied into the terminal data folder
   (`%APPDATA%\MetaQuotes\Terminal\<hash>\MQL5\`) before running, and a stale
-  copy there will silently test old code. Verify hashes or copy after every
-  MQL5 change.
-- Python runs from `research/`.
+  copy there will silently test old code. The indicator includes
+  `../Include/...`, so it must be compiled from inside the data folder.
+- Python runs from `research/`. On this machine `python` is an embeddable
+  build, which ignores both `PYTHONPATH` and the implicit current directory:
+  use `python -m unittest discover -s tests -t .`, or plain
+  `python -m pytest tests -q`. See `TESTING.md`.
+- The demo terminal logs in as Alpari-MT5-Demo. Do not disturb a running
+  instance without asking.

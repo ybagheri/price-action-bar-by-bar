@@ -37,10 +37,21 @@ Python must not independently redefine MT5 setups. It validates and measures exp
 ## Current technical debt
 
 - Indicator lifecycle runtime tests (duplicate ticks, history reload).
-- Stable timestamp-based pattern slope normalization.
 - Higher-timeframe and session context.
-- A real event export to point the reporting tool at.
-- NinjaTrader compilation/parity fixtures.
+- A real event export to point the reporting and walk-forward tooling at.
+- NinjaTrader compilation/parity fixtures; its slope math still hardcodes
+  adjacent x coordinates and is dimensionally wrong.
+- The harness run still depends on a human opening a chart and reading the
+  journal, so evidence is slow to regenerate.
+
+## Measurement conventions
+
+Anything compared across symbols or timeframes must be dimensionless. A raw
+price-per-bar quantity is not: on a 1.10 instrument it is roughly three
+orders of magnitude smaller than on gold, so a single threshold either never
+fires or always fires. Pattern slopes are therefore a fraction of price per
+bar, measured off swing **timestamps** rather than series indexes, because a
+series index shifts when a new bar arrives and restarts on a history reload.
 
 ## MQL5 test fixtures
 

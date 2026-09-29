@@ -27,7 +27,7 @@
 | Input | Default | Meaning |
 |---|---:|---|
 | `InpSwingSimilarityPct` | 0.15 | Equal-swing tolerance in percent |
-| `InpConvergenceMin` | 0.15 | Heuristic convergence threshold |
+| `InpConvergenceMin` | 0.00020 | Minimum convergence to flag a triangle, as a **fraction of price per bar** (0.00020 = 0.020%/bar) |
 | `InpBreakoutLookback` | 10 | Fresh-extreme window |
 | `InpBreakoutClvMin` | 0.50 | Breakout close-location threshold |
 | `InpClimaxLookback` | 20 | Climax baseline window |

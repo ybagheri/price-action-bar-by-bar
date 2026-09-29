@@ -15,16 +15,21 @@ Current state, verified evidence, and open gaps are summarised in
 - English architecture, usage, strategy, testing, and backtesting documentation.
 - MQL5 runtime harness execution with archived evidence (41 passed, 0 failed).
 - Aggregate event reports with win rate, expectancy in R, MFE, and MAE by setup type or engine status.
+- Walk-forward validation: chronological in-sample/out-of-sample blocks with a reported
+  degradation gap, and per-instrument grouping and walk-forward.
+- `symbol` and `period` added to the event export so multi-instrument runs are possible.
+- Stable, normalized pattern slopes (fraction of price per bar, keyed off swing timestamps).
+- MQL5 runtime harness re-executed and archived (54 passed, 0 failed).
 
 ## Next
 
 1. Run the report against a real exported event file and archive the result.
-2. Add broader historical and multi-instrument validation with walk-forward separation.
+2. Point the walk-forward tooling at that real export across more than one instrument.
 3. Implement configurable higher-timeframe context using closed HTF bars.
 4. Add session/prior-day/overnight levels with broker-time assumptions.
-5. Replace index-based pattern slopes with stable normalized measurements.
-6. Add shared fixtures and compile NinjaTrader 8.
-7. Add MQL5 indicator lifecycle integration tests.
+5. Apply the same timestamp-normalized slope to the NinjaTrader port and compile it.
+6. Add MQL5 indicator lifecycle integration tests.
+7. Automate the harness run so evidence does not depend on a human opening a chart.
 
 ## Explicitly deferred
 

@@ -135,10 +135,14 @@ Reference: `MQL5/Include/PriceActionBarByBar/TradingRangeDetector.mqh:118`
 
 MQL5 stores mutable series indexes in swing points. NT does not store bar positions and hardcodes adjacent x coordinates for slope, which is dimensionally wrong when highs or lows are separated by different numbers of bars.
 
+Status: **resolved on the MQL5 side in Phase 14; NinjaTrader still unfixed.** MQL5 now keys slopes off swing
+timestamps and normalizes by the reference price, so the threshold is scale-free. The NinjaTrader port still hardcodes
+adjacent x coordinates and remains unverified. See `HANDOFF.md`.
+
 References:
 
-- `MQL5/Include/PriceActionBarByBar/PAB_Types.mqh:94`
-- `MQL5/Include/PriceActionBarByBar/PatternDetector.mqh:131`
+- `MQL5/Include/PriceActionBarByBar/PAB_Utils.mqh` (`NormalizedSlopePerBar`)
+- `MQL5/Include/PriceActionBarByBar/PatternDetector.mqh` (`SwingSlope`)
 - `NinjaTrader/PriceActionBarByBar.cs:596`
 
 ### ATR is copied on every tick
