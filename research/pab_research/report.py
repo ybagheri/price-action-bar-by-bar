@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Sequence
 
 from .events import PriceBar, SetupEvent
-from .outcomes import BarSeries, OutcomeResult, evaluate_setup
+from .outcomes import BarBook, BarSeries, OutcomeResult, evaluate_setup
 
 
 @dataclass(frozen=True)
@@ -107,31 +107,59 @@ def summarize(
     )
 
 
-def _as_series(bars: Sequence[PriceBar] | BarSeries) -> BarSeries:
+@dataclass(frozen=True)
+class MeasuredSet:
+    """Events that can be measured, plus those that provably cannot.
+
+    An event whose symbol has no bar history is not measured at all. Silently
+    scoring it against some other market's prices would produce a plausible,
+    wrong number, which is the failure mode this project exists to avoid. It
+    is counted and reported instead.
+    """
+
+    measurable: list[SetupEvent]
+    unattributed: list[SetupEvent]
+
+    @property
+    def excluded_count(self) -> int:
+        return len(self.unattributed)
+
+
+def partition_by_bar_history(
+    events: Sequence[SetupEvent],
+    bars: BarBook,
+) -> MeasuredSet:
+    """Split events into those with bar history and those without."""
+    measurable: list[SetupEvent] = []
+    unattributed: list[SetupEvent] = []
+    for event in events:
+        (measurable if bars.has(event.symbol) else unattributed).append(event)
+    return MeasuredSet(measurable, unattributed)
+
+
+def _as_series(bars) -> BarSeries | BarBook:
     """Reuse an already-built index, or build it once for a plain list."""
-    return bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    return bars if isinstance(bars, (BarSeries, BarBook)) else BarSeries.of(bars)
 
 
 def evaluate_and_summarize(
     key: str,
     events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar] | BarSeries,
+    bars,
 ) -> SetupStats:
     """Evaluate every event against one bar history, then summarize the group.
 
     The bar index is built once here rather than once per event. On a real
-    export that is the difference between seconds and hours.
+    export that is the difference between seconds and hours. ``bars`` may be a
+    plain list, a :class:`BarSeries`, or a :class:`BarBook` in which case each
+    event is measured against its own market's bars.
     """
     series = _as_series(bars)
     results = [evaluate_setup(event, series) for event in events]
     return summarize(key, events, results)
 
 
-def _grouped(
-    events: Sequence[SetupEvent],
-    bars: Sequence[PriceBar] | BarSeries,
-    key_of,
-) -> dict[str, SetupStats]:
+def _grouped(events: Sequence[SetupEvent], bars, key_of) -> dict[str, SetupStats]:
     grouped: dict[str, list[SetupEvent]] = {}
     for event in events:
         grouped.setdefault(key_of(event), []).append(event)
@@ -191,7 +219,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Print a setup report for an exported event CSV and a bar history CSV."""
     import argparse
 
-    from .events import load_price_bars, load_setup_events
+    from .events import (
+        load_price_bars,
+        load_price_bars_by_symbol,
+        load_setup_events,
+    )
+    from .outcomes import BarBook
 
     parser = argparse.ArgumentParser(
         prog="python -m pab_research",
@@ -201,9 +234,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("bars_csv", help="CSV with open_time, high, low columns")
     parser.add_argument(
         "--group",
-        choices=("setup", "status", "instrument"),
+        choices=("setup", "status", "instrument", "market"),
         default="setup",
-        help="group the report by setup_type, engine status, or symbol",
+        help=(
+            "group by setup_type, engine status, symbol, or symbol+timeframe. "
+            "Use 'market' whenever the export covers more than one timeframe, "
+            "since pooling M5 and H1 averages two different holding profiles."
+        ),
     )
     parser.add_argument(
         "--walk-forward",
@@ -240,10 +277,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     events = load_setup_events(args.events_csv)
-    bars = load_price_bars(args.bars_csv)
     if not events:
         print("no events found")
         return 1
+
+    # Bars are loaded per symbol whenever the event file names one. Mixing
+    # markets in a single bar series is not a small error: USDJPY prices are
+    # two orders of magnitude above EURUSD, so an event measured against the
+    # wrong market yields a confident, meaningless number.
+    symbols = {event.symbol for event in events}
+    if len(symbols) > 1:
+        by_symbol = load_price_bars_by_symbol(args.bars_csv)
+        bars = BarBook.of(by_symbol)
+        split = partition_by_bar_history(events, bars)
+        events = split.measurable
+        if not events:
+            print(
+                "no events have bar history for their own symbol; "
+                f"bar file covers {sorted(by_symbol)}, events name {sorted(symbols)}"
+            )
+            return 1
+        excluded_label = f", {split.excluded_count} events excluded (no bars for their symbol)"
+        bar_label = f"{sum(len(v) for v in by_symbol.values())} bars across {len(by_symbol)} markets"
+    else:
+        bars = load_price_bars(args.bars_csv)
+        excluded_label = ""
+        bar_label = f"{len(bars)} bars"
 
     start = datetime.fromisoformat(args.from_iso) if args.from_iso else None
     end = datetime.fromisoformat(args.to_iso) if args.to_iso else None
@@ -283,7 +342,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         for label, result in per_symbol.items():
             header = (
                 f"walk-forward: {label}, {len(events)} events, "
-                f"{len(bars)} bars{window_label}, {result.folds_promised} folds"
+                f"{bar_label}{window_label}{excluded_label}, "
+                f"{result.folds_promised} folds"
             )
             print(header)
             print(format_fold_report(result))
@@ -296,8 +356,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         from .validation import group_by_instrument
 
         grouper = group_by_instrument
+    elif args.group == "market":
+        from .validation import group_by_market
+
+        grouper = group_by_market
     else:
         grouper = group_by_status
-    title = f"{len(events)} events, {len(bars)} bars{window_label}, grouped by {args.group}"
+    title = (
+        f"{len(events)} events, {bar_label}{window_label}{excluded_label}, "
+        f"grouped by {args.group}"
+    )
     print(format_report(grouper(events, bars), title))
     return 0

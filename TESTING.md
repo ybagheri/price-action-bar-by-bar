@@ -48,10 +48,11 @@ the same reason, and `testpaths` in `pyproject.toml` means bare
 - MQL5 harness runtime, **headless**: 69 passed, 0 failed (Alpari MT5_3 build
   6230, 2026-09-29). Archived at
   `research/test_artifacts/mql5_harness_20260929_headless.txt`.
-- Python tests: 67 passed, `pytest` and `unittest` agree.
+- Python tests: 77 passed, `pytest` and `unittest` agree.
 - Python syntax compilation: passed.
-- Real headless historical export: 72,189 bars replayed, 72,188 events.
-  Archived at `research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+- Real headless historical export: 242,473 events across 4 markets and 2
+  timeframes, all seven combinations measured, 0 excluded for missing bars.
+  Archived at `research/test_artifacts/study_multi_market_2014.txt`.
 
 An earlier 54-assertion interactive run is kept at
 `research/test_artifacts/mql5_harness_20260929.txt`; it predates the move into
@@ -180,8 +181,17 @@ than an error:
 - **Tester inputs cannot be set from the CLI.** No `ExpertParameters` /
   `Parameters` spelling is honoured, so the replay's date range is
   compiled-in. An empty bound means "all available history".
-- **Only cached history is available.** The window must lie inside what the
-  broker has actually downloaded; the EA reports the range it got.
+- **Only cached history is available, and which history is cached varies
+  between runs.** The window must lie inside what the broker has actually
+  downloaded, and the cached range shifts as the terminal refreshes. The EA
+  prints the range it actually replayed, and an archived result must quote
+  that line rather than the range you asked for. A `CopyRates` failure and a
+  slow history download can both stall a run; cap the per-run timeout.
+- **Runs can leave a stale `pab_harness.txt` or CSV behind.** The harness
+  rewrites its summary each run, but the export only writes when the replay
+  reaches the write loop, so a timed-out run can leave the previous run's
+  output in place. Delete the target files before each run and check the
+  timestamps, not just the presence.
 
 ## Required expansion
 

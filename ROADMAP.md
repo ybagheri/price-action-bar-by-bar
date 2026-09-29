@@ -35,21 +35,35 @@ Current state, verified evidence, and open gaps are summarised in
   writes a machine-readable verdict. One copy of the assertions, shared by the
   interactive Script and the headless EA.
 - Headless harness evidence archived: 69 passed, 0 failed.
+- **Multi-market, multi-timeframe study completed**: 242,473 events across
+  EURUSD/GBPUSD/USDCHF/USDJPY at M5 and H1, 2014. Archived at
+  `research/test_artifacts/study_multi_market_2014.txt`. The engine shows no
+  edge on any of the seven market/timeframe combinations.
+- `BarBook` so each event is measured against its own market's bars. Scoring a
+  USDJPY event against EURUSD prices is a confident wrong number, not a small
+  error, so it now raises instead.
+- `--group market` for symbol+timeframe buckets, because pooling M5 and H1
+  averages two different holding profiles.
+- The bar export carries `symbol` and `period` per row.
 
 ## Next
 
-1. Repeat the real export on more symbols and timeframes, then re-run the
-   walk-forward per instrument. One symbol and one year is not a study.
-2. Add spread, slippage, and commission to the export so costs can be included
-   in the reported expectancy. Every figure so far is gross of costs.
-3. Review whether the setups are too tight to measure at M5: average
-   bars-to-exit is under 3 for most types, and one in five exits is ambiguous.
-4. Add MQL5 indicator lifecycle integration tests. The harness covers the
-   analyzers, not `OnCalculate` or the chart renderer, so duplicate ticks and
-   history reload are still unproven.
-5. Implement configurable higher-timeframe context using closed HTF bars.
-6. Add session/prior-day/overnight levels with broker-time assumptions.
-7. Apply the timestamp-normalized slope to the NinjaTrader port and compile it.
+1. **Add spread, slippage, and commission to the export.** Every expectancy
+   figure to date is gross, and the measured edge is smaller than realistic
+   costs, so no figure can be compared to a broker statement. This is now the
+   blocking gap for any profitability question.
+2. Widen the study to H4 and D1. Nothing here says whether the rules work on a
+   swing timeframe, and the H1 results are the least favourable of the seven.
+3. Repeat across a second year and a second broker feed. One broker's demo
+   data for 2014 is a narrow base.
+4. Indicator lifecycle integration tests. The harness covers the analyzers,
+   not `OnCalculate` or the chart renderer.
+5. Review the H1 setup levels: 31-36 bars to exit with slightly negative
+   expectancy suggests the stop and target construction is not doing anything
+   on that timeframe.
+6. Implement configurable higher-timeframe context using closed HTF bars.
+7. Add session/prior-day/overnight levels with broker-time assumptions.
+8. Apply the timestamp-normalized slope to the NinjaTrader port and compile it.
 
 ## Explicitly deferred
 

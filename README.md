@@ -63,9 +63,9 @@ Verified in the current environment:
 - MQL5 regression harness runtime, headless in the Strategy Tester:
   69 passed, 0 failed. A run no longer needs a human; it writes a
   machine-readable verdict.
-- Python research tests: 67 passed.
+- Python research tests: 77 passed.
 - Python `compileall`: passed.
-- Real headless historical export: 72,189 bars replayed, 72,188 events.
+- Real headless historical export: 242,473 events across 4 markets and 2 timeframes.
 
 No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 
@@ -82,6 +82,7 @@ Tester; see `TESTING.md`.
 
 ```powershell
 python -m pab_research events.csv bars.csv --group setup
+python -m pab_research events.csv bars.csv --group market
 python -m pab_research events.csv bars.csv --from 2025-01-01T00:00:00 --to 2025-12-31T00:00:00
 ```
 
@@ -92,22 +93,30 @@ python -m pab_research events.csv bars.csv --walk-forward 4
 python -m pab_research events.csv bars.csv --walk-forward 4 --walk-forward-per-instrument
 ```
 
-### First real measurement, and it shows no edge
+Use `--group market` rather than `--group instrument` when the export spans
+more than one timeframe, and note that a multi-market export needs a bar file
+carrying `symbol` and `period` — the research layer refuses to measure an
+event against a market it has no bars for.
 
-EURUSD M5, Alpari-MT5-Demo, one full year of 2023, 72,188 events. Resolved
-expectancy by setup type runs from -0.06R to +0.04R; win rate from 38.2 to
-55.4 percent; walk-forward degradation +0.01R, meaning the two halves
-performed the same rather than either being good.
+### Measured result: no edge
+
+242,473 events across EURUSD, GBPUSD, USDCHF and USDJPY at M5 and H1, 2014 —
+about 50,000 resolved outcomes in each walk-forward half. Every one of the
+seven market/timeframe combinations lands within a few hundredths of an R of
+zero. Pooled expectancy is +0.02R in sample and +0.02R out of sample,
+degradation −0.00R.
+
+The clearest signal is structural and negative: **H1 setups average 31 to 36
+bars to exit and are slightly negative, while M5 setups average about 3 bars.**
+An effect needing 35 bars to resolve is a different claim from one resolving
+in 3.
 
 These figures are **gross of spread, slippage, and commission**, which the
-export does not carry, and real costs would consume several times the
-measured per-trade edge. This is a measurement of the engine, not evidence
-that it works. Full output is archived at
-`research/test_artifacts/real_export_eurusd_m5_2023.txt`.
-
-The setups also resolve too fast to be measurable at M5 — average 1.9 to 2.8
-bars to exit for most types, with about one in five exits touching both the
-target and the stop inside the same bar.
+export does not carry, and the measured edge is smaller than realistic costs
+by several times. So this is neither a profitability result nor a refutation
+of one: the study cannot say whether the net figure is small-positive or
+clearly negative. Full output is archived at
+`research/test_artifacts/study_multi_market_2014.txt`.
 
 ## Current limitations
 

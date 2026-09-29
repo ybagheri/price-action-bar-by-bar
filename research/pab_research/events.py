@@ -89,6 +89,12 @@ def validate_event_timing(event: SetupEvent) -> None:
 
 DELIMITERS = ("\t", ";", ",")
 
+#: Bucket for events and bars whose symbol column is missing or empty, which
+#: is the case for every export written before Phase 16. Kept here rather
+#: than in validation so both the loaders and the grouping can use it without
+#: importing each other.
+UNKNOWN_SYMBOL = "unspecified"
+
 
 def sniff_delimiter(handle) -> str:
     """Pick the CSV dialect that matches the header line actually on disk.
@@ -173,6 +179,36 @@ def parse_timestamp(value: str) -> datetime:
         return datetime.fromisoformat(rebuilt)
     except ValueError as error:
         raise ValueError(f"unrecognised timestamp {value!r}") from error
+
+
+def load_price_bars_by_symbol(path: str) -> dict[str, list[PriceBar]]:
+    """Load bar history grouped by the ``symbol`` column.
+
+    A bar file written for one market cannot be evaluated against another
+    market's events, so a multi-instrument study needs the mapping kept
+    intact. This returns it directly rather than flattening, because
+    flattening is precisely the mistake that would be invisible afterwards.
+
+    Rows without a ``symbol`` column, or with an empty value, are grouped
+    under ``"unspecified"`` so an older single-market file still loads.
+    """
+    import csv
+
+    grouped: dict[str, list[PriceBar]] = {}
+    with open(path, newline="", encoding="utf-8-sig") as handle:
+        delimiter = sniff_delimiter(handle)
+        for row in csv.DictReader(handle, delimiter=delimiter):
+            symbol = (row.get("symbol") or "").strip() or UNKNOWN_SYMBOL
+            grouped.setdefault(symbol, []).append(
+                PriceBar(
+                    open_time=parse_timestamp(row["open_time"]),
+                    high=float(row["high"]),
+                    low=float(row["low"]),
+                )
+            )
+    for bars in grouped.values():
+        bars.sort(key=lambda item: item.open_time)
+    return grouped
 
 
 def load_setup_events(path: str) -> list[SetupEvent]:

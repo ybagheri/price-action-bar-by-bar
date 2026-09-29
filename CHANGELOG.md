@@ -52,10 +52,32 @@
   the MT5 build, and the names of any failing assertions. A test run no
   longer depends on a human opening a chart, and the evidence is
   machine-readable rather than scraped from a journal.
+- `BarBook`, which holds bar history per market and refuses to measure an
+  event against a market it does not have. USDJPY prices are two orders of
+  magnitude above EURUSD, so a cross-market mismatch is not a small error but
+  a confident, meaningless number.
+- `load_price_bars_by_symbol`, so a concatenated multi-market bar file keeps
+  its market mapping instead of being flattened.
+- `partition_by_bar_history`, which splits events into measurable and
+  unattributable and reports the excluded count rather than guessing.
+- `group_by_market` and `--group market`, which bucket by symbol *and*
+  timeframe. Pooling M5 and H1 averages a two-bar holding profile with a
+  thirty-five-bar one, which describes neither.
+- The bar export now writes `symbol` and `period` per row, so a merged
+  multi-market file is self-describing.
+- **Multi-market, multi-timeframe study: 242,473 events, EURUSD/GBPUSD/USDCHF/
+  USDJPY at M5 and H1, 2014.** Archived at
+  `research/test_artifacts/study_multi_market_2014.txt`.
 
 ### Fixed
 
-A near-miss measured move rejected a whole setup. `mmUsable` required only
+- **A multi-market export could have been scored against the wrong market.**
+  `evaluate_setup` took a single bar list, so concatenating seven
+  market/timeframe exports would have measured USDJPY events against EURUSD
+  prices and reported confident nonsense. `BarBook` makes that a hard error.
+  Caught while building the study rather than by a failing test: the old
+  signature had no way to express the mistake.
+- A near-miss measured move rejected a whole setup. `mmUsable` required only
 `targetPrice > entry`, so a projection a fraction of a point beyond entry was
 adopted and then thrown out by the final one-point guard, turning a usable
 setup into NO TRADE. A too-close resistance clamp already fell back to the
@@ -140,8 +162,13 @@ look like the real file.
   (Alpari MT5_3 build 6230, 2026-09-29, 0.16 s). Archived at
   `research/test_artifacts/mql5_harness_20260929_headless.txt`. The first
   headless run was 67/1 and exposed the near-miss measured-move defect above.
-- Python research suite: 67 tests passed; `pytest` and `unittest` agree.
+- Python research suite: 77 tests passed; `pytest` and `unittest` agree.
 - Python `compileall`: passed.
+- **Multi-market, multi-timeframe study, headless:** 242,473 events across 4
+  markets and 2 timeframes, 2014, all seven combinations measured, 0 events
+  excluded for missing bar history. Walk-forward over the pooled set
+  reported degradation −0.00R on about 50,000 resolved outcomes per side.
+  Archived at `research/test_artifacts/study_multi_market_2014.txt`.
 - **Real export, headless, Alpari-MT5-Demo EURUSD M5, 2023-01-02 to
   2023-12-29:** 72,189 bars replayed, 72,188 events written, 0 skipped, in
   11 seconds. Grouped report, status report, and a 4-fold walk-forward all
@@ -150,16 +177,24 @@ look like the real file.
 
 ### Measured result, stated plainly
 
-**The engine shows no measurable edge on this sample.** Resolved expectancy by
-setup type ranges from -0.06R to +0.04R; win rate ranges from 38.2 percent to
-55.4 percent. Walk-forward degradation is +0.01R and +0.9 percentage points,
-meaning the in-sample and out-of-sample halves performed the same, not that
-either was good.
+**The engine shows no measurable edge, and ten times the data did not change
+that.** Across 242,473 events spanning EURUSD, GBPUSD, USDCHF and USDJPY at
+M5 and H1, every one of the seven market/timeframe combinations lands within a
+few hundredths of an R of zero. Pooled walk-forward expectancy is +0.02R in
+sample and +0.02R out of sample, degradation −0.00R, on about 50,000 resolved
+outcomes per side.
 
-This is one symbol, one timeframe, one year, one parameter set, and it is
-gross of spread, slippage, and commission because the export does not carry
-them. Realistic costs would consume several times the measured per-trade edge.
-No profitability claim is made and none is supported.
+The one clear signal is structural and negative: H1 setups average 31 to 36
+bars to exit with slightly *negative* expectancy, while M5 setups average
+about 3 bars. An edge that needs 35 bars to resolve is a different claim from
+one that resolves in 3, and needs a different risk model.
+
+Every figure is **gross of spread, slippage, and commission**, because the
+export does not carry them. The measured edge is smaller than realistic costs
+by several times, so the net result is worse than shown. This is a
+measurement of the engine, not evidence that it works, and not evidence that
+it cannot work at a different cost or timeframe. No profitability claim is
+made.
 
 ### Known gaps
 
@@ -167,7 +202,12 @@ No profitability claim is made and none is supported.
   the chart renderer. Duplicate ticks and history reload remain untested, and
   the chart path is compile-verified and replay-verified but not
   lifecycle-verified.
-- Costs are absent from the export, so every expectancy figure is gross.
+- Costs are absent from the export, so every expectancy figure is gross. The
+  measured edge is smaller than realistic costs, which makes this the
+  blocking gap for any profitability question.
+- Timeframe breadth is M5 and H1 only. Nothing here says whether the rules do
+  anything on a swing timeframe.
+- One broker's demo feed, one year (2014).
 - The setups are tight: average bars-to-exit is under 3 for most types, and a
   large share of exits are ambiguous (both levels touched in one M5 bar).
 - One symbol, one timeframe, one year. Multi-instrument and multi-regime

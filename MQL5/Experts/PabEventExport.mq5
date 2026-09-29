@@ -297,7 +297,7 @@ int OnInit()
       else
         {
          if(FileSize(barFile) == 0)
-            FileWrite(barFile, "open_time", "high", "low");
+            FileWrite(barFile, "open_time", "high", "low", "symbol", "period");
          else
             FileSeek(barFile, 0, SEEK_END);
 
@@ -307,10 +307,16 @@ int OnInit()
          // Series index n-1 is the OLDEST bar and index 0 the newest, so
          // dropping the newest `trim` bars means stopping the descending
          // walk at `trim`, not at n-1-trim.
+         // symbol and period are written per row, not inferred from the file
+         // name. A multi-instrument study concatenates bar files, and once
+         // they are in one file the only thing that stops a USDJPY event
+         // being evaluated against EURUSD prices is that each row says which
+         // market it belongs to.
          for(int i = n - 1; i >= trim; i--)
             FileWrite(barFile, IsoTimestamp(time[i]),
                       DoubleToString(high[i], _Digits),
-                      DoubleToString(low[i], _Digits));
+                      DoubleToString(low[i], _Digits),
+                      _Symbol, PeriodLabel(_Period));
          FileClose(barFile);
          PrintFormat("PabEventExport: wrote %d of %d bars to %s, dropping the %d newest "
                      "that have no full ATR window",

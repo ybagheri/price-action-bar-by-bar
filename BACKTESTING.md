@@ -115,32 +115,60 @@ rows group under `unspecified` rather than being silently dropped.
 - Future data is isolated in the outcome evaluator.
 - Walk-forward blocks never overlap and are cut on `decision_time`.
 
+## Multi-market exports
+
+An export covers one symbol and one timeframe, because that is what a single
+Strategy Tester run can replay. A study is assembled by running the export
+several times and concatenating the results. Two things make that safe:
+
+- The bar file carries `symbol` and `period` on every row, so a merged file is
+  self-describing. Without those columns the merge would destroy the only
+  information that says which market a price belongs to.
+- The research layer refuses to measure an event against a market it has no
+  bars for. `BarBook` raises `MissingBarHistory` rather than falling back,
+  because USDJPY at 105 and EURUSD at 1.37 differ by two orders of magnitude
+  and a cross-market mismatch produces a confident, meaningless number rather
+  than an obvious failure.
+
+Events that name a market with no bar history are excluded and counted, and
+the report prints the count. Here it is zero, which is the number to check
+before believing a multi-market figure.
+
+Group with `--group market`, not `--group instrument`, whenever the export
+covers more than one timeframe. Symbol-only grouping pools M5 and H1, which
+averages a two-bar holding profile with a thirty-five-bar one. In the 2014
+study that pooling turned −0.01R..−0.04R (H1) and +0.01R..+0.03R (M5) into a
+single figure that described neither.
+
 ## Current limitations
 
-**The first real measurement exists, and it shows no edge.** EURUSD M5,
-Alpari-MT5-Demo, 2023-01-02 to 2023-12-29, 72,188 events. Resolved expectancy
-by setup type runs from -0.06R to +0.04R and win rate from 38.2 to 55.4
-percent. Walk-forward degradation is +0.01R and +0.9 percentage points, which
-means the in-sample and out-of-sample halves performed the same, not that
-either was good. Archived at
-`research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+**The first real measurement exists, and it shows no edge.** A 242,473-event
+study across EURUSD, GBPUSD, USDCHF and USDJPY at M5 and H1 for 2014, with
+roughly 50,000 resolved outcomes in each walk-forward half. Every one of the
+seven market/timeframe combinations lands within a few hundredths of an R of
+zero; pooled expectancy is +0.02R in sample and +0.02R out of sample,
+degradation −0.00R. Archived at
+`research/test_artifacts/study_multi_market_2014.txt`.
 
-That is one symbol, one timeframe, one year, one parameter set, and it is
-**gross of spread, slippage, and commission** because the export does not
-carry them. Realistic costs on EURUSD M5 would consume several times the
-measured per-trade edge, so the net result is worse than shown, not better. No
+The one clear signal is structural and negative: **H1 setups average 31 to 36
+bars to exit and are slightly negative, while M5 setups average about 3 bars
+and are slightly positive.** An effect that needs 35 bars to resolve is a
+different claim from one that resolves in 3, and needs a different cost and
+risk model to hold.
+
+All figures are **gross of spread, slippage, and commission**, because the
+export does not carry them. The measured edge is smaller than realistic costs
+by several times, so the net is worse than shown, not better. This is
+therefore not a profitability result in either direction: the study cannot
+say whether the net figure is small-positive or clearly negative. No
 profitability claim is made and none is supported.
 
-Two structural limits matter more than the headline numbers:
+Remaining limits:
 
-- **The setups are too tight to measure at M5.** The stop is the signal bar's
-  own extreme plus 0.25 bar range, and the target is the nearest resistance or
-  support, so average bars-to-exit is 1.9 to 2.8 for every type except
-  `breakout_follow_through` at 10.8. One event in five resolves ambiguously
-  because both levels are touched inside the same M5 bar. A two-bar hold
-  cannot distinguish skill from noise.
-- **One symbol and one year is not a study.** Multi-instrument and multi-regime
-  validation remain open.
+- M5 and H1 only. Nothing here says whether the rules work on H4 or D1.
+- One broker's demo feed, one year.
+- USDJPY exists at H1 only, so its +0.06R rests on 1,403 resolved outcomes
+  and is the one figure here worth re-testing before believing.
 
 ## Producing an export
 

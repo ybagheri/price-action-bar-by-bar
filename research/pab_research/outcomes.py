@@ -62,11 +62,66 @@ class BarSeries:
         return len(self.bars)
 
 
-def evaluate_setup(event: SetupEvent, bars: Sequence[PriceBar] | BarSeries) -> OutcomeResult:
+class MissingBarHistory(LookupError):
+    """Raised when an event names a market for which no bar history was given.
+
+    This is a hard error rather than a silent fallback. Evaluating a USDJPY
+    event against EURUSD bars produces plausible-looking numbers that are
+    entirely meaningless, which is far worse than refusing to answer.
+    """
+
+
+@dataclass(frozen=True)
+class BarBook:
+    """Bar history for several markets, keyed by the exported ``symbol``.
+
+    A single :class:`BarSeries` is only valid for one price scale. EURUSD at
+    1.37 and USDJPY at 105 differ by two orders of magnitude, so an outcome
+    computed from the wrong one is not a small error, it is a fabricated
+    number. Any event whose symbol has no entry here raises
+    :class:`MissingBarHistory` instead of being measured against something
+    else.
+    """
+
+    series: dict[str, BarSeries]
+
+    @classmethod
+    def of(cls, by_symbol: dict[str, Sequence[PriceBar]]) -> "BarBook":
+        return cls({key: BarSeries.of(value) for key, value in by_symbol.items()})
+
+    def get(self, symbol: str) -> BarSeries:
+        found = self.series.get(symbol)
+        if found is None:
+            raise MissingBarHistory(
+                f"no bar history for symbol {symbol!r}; "
+                f"have: {sorted(self.series)}"
+            )
+        return found
+
+    def has(self, symbol: str) -> bool:
+        return symbol in self.series
+
+    def __len__(self) -> int:
+        return len(self.series)
+
+    def symbols(self) -> list[str]:
+        return sorted(self.series)
+
+
+def evaluate_setup(
+    event: SetupEvent,
+    bars: Sequence[PriceBar] | BarSeries | BarBook,
+) -> OutcomeResult:
     if event.status == "no_trade":
         return OutcomeResult("no_trade", None, None, 0.0, 0.0)
 
-    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    if isinstance(bars, BarBook):
+        series = bars.get(event.symbol)
+    elif isinstance(bars, BarSeries):
+        series = bars
+    else:
+        series = BarSeries.of(bars)
+
     start = series.first_index_at_or_after(event.decision_time)
     if start >= len(series.bars):
         return OutcomeResult("expired", None, None, 0.0, 0.0)

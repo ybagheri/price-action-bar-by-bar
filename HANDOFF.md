@@ -23,8 +23,8 @@ be labelled separately.
 | MQL5 harness compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 export EA compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 harness runtime, **headless** | **69 passed, 0 failed** | `research/test_artifacts/mql5_harness_20260929_headless.txt` |
-| Real headless export | 72,189 bars, 72,188 events, 10 s | `research/test_artifacts/real_export_eurusd_m5_2023.txt` |
-| Python tests | 67 passed | `pytest` and `unittest` both agree |
+| Real headless export, multi-market | 242,473 events, 4 markets, 2 timeframes | `research/test_artifacts/study_multi_market_2014.txt` |
+| Python tests | 77 passed | `pytest` and `unittest` both agree |
 | Python `compileall` | clean | `research/` |
 
 **What the harness does not cover.** It exercises the analyzer classes, not
@@ -34,28 +34,31 @@ ticks and history reload remain untested. That is the main remaining gap.
 
 ## The headline finding
 
-EURUSD M5, Alpari-MT5-Demo, 2023-01-02 to 2023-12-29, 72,188 events:
+242,473 events across EURUSD, GBPUSD, USDCHF and USDJPY at M5 and H1, 2014 —
+about 50,000 resolved outcomes in each walk-forward half:
 
-- Resolved expectancy by setup type: **-0.06R to +0.04R**.
-- Win rate by setup type: **38.2% to 55.4%**.
-- Walk-forward degradation (OOS - IS): **+0.01R, +0.9 pp** — the two halves
-  performed the same, not that either was good.
-- `trend_pullback` is the worst at 38.2% win rate and `failed_breakout` the
-  best at 55.4%, but neither expectancy is distinguishable from zero at this
-  sample size.
+- Pooled expectancy: **+0.02R in sample, +0.02R out of sample**.
+- Walk-forward degradation: **−0.00R** — the halves performed the same.
+- Win rate: **43% to 44%**.
+- Every one of the seven market/timeframe combinations lands within a few
+  hundredths of an R of zero.
 
-All figures are **gross of spread, slippage, and commission**, because the
-export does not carry them. Realistic costs on EURUSD M5 would consume
-several times the measured edge, so the net is worse than shown.
+The one clear signal is structural and **negative**: H1 setups average **31 to
+36 bars** to exit and are slightly negative (−0.01R to −0.04R), while M5
+setups average about **3 bars** and are slightly positive (+0.01R to +0.03R).
+An effect that needs 35 bars to resolve is a different claim from one that
+resolves in 3, and needs a different cost and risk model to hold.
 
-The setups are also too tight to measure at M5: average bars-to-exit is 1.9 to
-2.8 for every type except `breakout_follow_through` at 10.8, and roughly one
-exit in five touches both the target and the stop inside a single bar
-(`ambiguous`, unresolvable). A two-bar hold cannot separate skill from noise.
+All figures are **gross of spread, slippage, and commission**. The measured
+edge is smaller than realistic costs by several times, so the net is worse
+than shown — but that also means this is **neither a profitability result nor
+a refutation of one**. The study cannot say whether the net figure is
+small-positive or clearly negative. Adding costs to the export is therefore
+the blocking gap, and it is the next item.
 
-**Do not tune parameters to improve these numbers.** That is exactly the
-overfitting the walk-forward split exists to detect, and one symbol on one
-yearframe cannot support tuning.
+**Do not tune parameters to improve these numbers.** That is precisely the
+overfitting the walk-forward split exists to detect, and one broker's demo
+feed for one year cannot support tuning.
 
 ## What Phase 16 and 17 changed
 
@@ -79,7 +82,7 @@ writes `pab_harness.txt` with the verdict, engine version, MT5 build, and the
 names of any failing assertions, rewritten every run so a stale PASS cannot
 be mistaken for the current one. It finishes in about 0.15 seconds.
 
-**Five defects that only a real export could expose.** None were findable from
+**Six defects that only a real export could expose.** None were findable from
 the synthetic fixtures, because the fixtures did not resemble the real file:
 
 1. A setup could be given a target on the wrong side of entry — a measured
@@ -97,6 +100,12 @@ the synthetic fixtures, because the fixtures did not resemble the real file:
    `csv.DictReader` defaults to comma while `FILE_CSV` defaults to tab, and
    `datetime.fromisoformat` rejects MQL5's dotted `TimeToString` output. Every
    test passed because the fixtures were written with Python's comma default.
+6. A multi-market export **could have been scored against the wrong market.**
+   `evaluate_setup` took one bar list, so merging seven market/timeframe
+   exports would have measured USDJPY events against EURUSD prices and
+   reported confident nonsense. `BarBook` now raises rather than falling back.
+   Caught while building the study, not by a failing test: the old signature
+   had no way to express the mistake.
 
 **A sixth defect, found by the first headless harness run** rather than by
 reading: `mmUsable` required only `targetPrice > entry`, so a measured move a
@@ -133,35 +142,40 @@ A test now pins the set.
 
 ## Honest gaps
 
+- **Costs are absent from the export, so every expectancy figure is gross.**
+  The measured edge is smaller than realistic costs, which makes this the
+  blocking gap for any profitability question.
 - **The harness does not reach the chart lifecycle.** It covers the analyzers,
   not `CPabEngine`, `OnCalculate`, or the renderer. Duplicate ticks and
   history reload are unproven.
-- Costs are absent from the export; every expectancy figure is gross.
-- The setups resolve too fast to measure at M5.
-- One symbol, one timeframe, one year. Multi-instrument and multi-regime
-  validation are open.
+- M5 and H1 only. Nothing here says whether the rules do anything on H4 or D1.
+- One broker's demo feed, one year (2014). No second broker, no second year.
 - Higher-timeframe and session context are not implemented; single timeframe.
 - NinjaTrader is never compiled, is not at parity, and its slope math still
   hardcodes adjacent x coordinates.
 - Tester inputs cannot be set from the command line, so a replay's date range
-  is compiled-in. Empty means "all available history".
+  is compiled-in, and which history is cached varies between runs. Always
+  read the range the run actually reported.
+- USDJPY exists at H1 only, so its +0.06R rests on 1,403 resolved outcomes.
 
 ## Next steps
 
 `ROADMAP.md` holds the authoritative list. In order:
 
-1. Repeat the real export on more symbols and timeframes, then re-run the
-   walk-forward per instrument. One symbol and one year is not a study.
-2. Add spread, slippage, and commission to the export so expectancy can be
-   reported net. Until then no figure is comparable to a broker statement.
-3. Decide whether the setups should be widened. At under three bars to exit
-   the M5 measurement is not informative, and that is a design question
-   rather than a parameter tweak.
+1. **Add spread, slippage, and commission to the export.** Until expectancy
+   can be reported net, no figure is comparable to a broker statement and the
+   study cannot resolve profitability in either direction.
+2. Widen to H4 and D1. The H1 sets are the least favourable of the seven, and
+   nothing has been measured on a swing timeframe.
+3. Repeat across a second year and a second broker feed.
 4. Indicator lifecycle integration tests, so `OnCalculate` and the renderer
    have runtime evidence rather than compile evidence.
-5. Higher-timeframe context using closed HTF bars.
-6. Session/prior-day/overnight levels with broker-time assumptions.
-7. NinjaTrader: apply the normalized slope and compile it.
+5. Review the H1 setup construction: 31-36 bars to exit with slightly
+   negative expectancy suggests the stop and target logic is not doing
+   anything at that timeframe.
+6. Higher-timeframe context using closed HTF bars.
+7. Session/prior-day/overnight levels with broker-time assumptions.
+8. NinjaTrader: apply the normalized slope and compile it.
 
 ## Environment notes
 

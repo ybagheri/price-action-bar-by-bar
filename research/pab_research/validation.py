@@ -33,8 +33,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Sequence
 
-from .events import PriceBar, SetupEvent
-from .outcomes import BarSeries, evaluate_setup
+from .events import UNKNOWN_SYMBOL, PriceBar, SetupEvent
+from .outcomes import BarBook, BarSeries, evaluate_setup
 from .report import SetupStats, summarize
 
 IN_SAMPLE = "in_sample"
@@ -42,8 +42,6 @@ OUT_OF_SAMPLE = "out_of_sample"
 
 #: Below this many resolved outcomes a block's expectancy is not trustworthy.
 DEFAULT_MIN_RESOLVED = 5
-
-UNKNOWN_SYMBOL = "unspecified"
 
 
 @dataclass(frozen=True)
@@ -118,7 +116,7 @@ def split_walk_forward(
     if min_resolved < 1:
         raise ValueError("min_resolved must be at least 1")
 
-    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    series = bars if isinstance(bars, (BarSeries, BarBook)) else BarSeries.of(bars)
 
     ordered = sorted(events, key=lambda event: event.decision_time)
     if not ordered:
@@ -189,7 +187,39 @@ def group_by_instrument(
     grouped: dict[str, list[SetupEvent]] = {}
     for event in events:
         grouped.setdefault(event.symbol or UNKNOWN_SYMBOL, []).append(event)
-    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    series = bars if isinstance(bars, (BarSeries, BarBook)) else BarSeries.of(bars)
+    return {
+        key: _pooled(key, group, series) for key, group in sorted(grouped.items())
+    }
+
+
+def market_of(event: SetupEvent) -> str:
+    """Bucket key for an event's market and timeframe together.
+
+    Grouping by symbol alone mixes timeframes, and that is not a meaningful
+    average: an M5 setup resolves in about two bars and an H1 setup in about
+    six, so a pooled expectancy describes neither. On a 242,473-event
+    multi-timeframe export this is the difference between a readable study and
+    a single number hiding two different things.
+    """
+    symbol = event.symbol or UNKNOWN_SYMBOL
+    period = event.period or "unknown"
+    return f"{symbol} {period}"
+
+
+def group_by_market(
+    events: Sequence[SetupEvent],
+    bars: Sequence[PriceBar] | BarSeries | BarBook,
+) -> dict[str, SetupStats]:
+    """Group events by symbol and timeframe together.
+
+    Prefer this over :func:`group_by_instrument` whenever the export covers
+    more than one timeframe, which is the normal case for a real study.
+    """
+    grouped: dict[str, list[SetupEvent]] = {}
+    for event in events:
+        grouped.setdefault(market_of(event), []).append(event)
+    series = bars if isinstance(bars, (BarSeries, BarBook)) else BarSeries.of(bars)
     return {
         key: _pooled(key, group, series) for key, group in sorted(grouped.items())
     }
@@ -211,7 +241,7 @@ def instrument_walk_forward(
     for event in events:
         grouped.setdefault(event.symbol or UNKNOWN_SYMBOL, []).append(event)
 
-    series = bars if isinstance(bars, BarSeries) else BarSeries.of(bars)
+    series = bars if isinstance(bars, (BarSeries, BarBook)) else BarSeries.of(bars)
     results: dict[str, WalkForwardResult] = {}
     for symbol, group in sorted(grouped.items()):
         try:
