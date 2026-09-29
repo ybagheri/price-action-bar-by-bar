@@ -29,9 +29,19 @@
 - `symbol` and `period` columns in the event export.
 - `CPabUtils::NormalizedSlopePerBar` and the `TestNormalizedPatternSlopes`
   harness group.
+- `research/pyproject.toml` is now a working package definition: explicit
+  package list, a `pab-research` console script, a `dev` extra carrying
+  pytest, and pytest `testpaths`.
 
 ### Fixed
 
+- **The documented report entry point did not work.**
+  `python -m pab_research events.csv bars.csv`, advertised in README.md,
+  BACKTESTING.md, and HANDOFF.md, failed with `No module named
+  pab_research`. `research/pyproject.toml` declared a project but was never
+  a complete package definition and the package was never installed. It is
+  now installable with `python -m pip install -e .` from `research/`, and
+  verified to work from an unrelated working directory.
 - MQL5 no-longer replays already processed bars on unchanged ticks.
 - Forming bar index 0 is no longer used for confirmed decisions.
 - ATR history is not copied on unchanged ticks.

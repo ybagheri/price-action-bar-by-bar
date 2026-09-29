@@ -22,15 +22,23 @@ a stale copy there silently tests old code.
 Python, from `research/`:
 
 ```powershell
+python -m pip install -e .          # once; makes `python -m pab_research` work
 python -m pytest tests -q
 python -m unittest discover -s tests -t .
 python -m compileall -q pab_research tests
 ```
 
-`-t .` is required. `research/tests/__init__.py` exists so the repository root is placed on
-`sys.path`. On an embeddable Python build `PYTHONPATH` and the implicit current directory are
-both ignored, so without `-t .` the discovery run imports nothing and reports zero real tests.
-`pytest` works without extra flags for the same reason.
+The editable install is required before the documented report entry point
+works. Without it, `python -m pab_research` fails with `No module named
+pab_research`, because an embeddable Python build ignores both `PYTHONPATH`
+and the implicit current directory. `research/pyproject.toml` pins the
+package list explicitly, so adding a stray directory under `research/`
+cannot silently change what gets installed.
+
+`unittest` discovery needs `-t .`; `research/tests/__init__.py` exists so the
+repository root lands on `sys.path`. `pytest` works without extra flags for
+the same reason, and `testpaths` in `pyproject.toml` means bare
+`python -m pytest` from `research/` is equivalent to `python -m pytest tests`.
 
 ## Current evidence
 

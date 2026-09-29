@@ -4,5 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pab-research"
-version = "0.1.0"
+version = "0.2.0"
+description = "Offline validation and measurement for PriceActionBarByBar exported events"
 requires-python = ">=3.10"
+# Deliberately zero runtime dependencies. The research layer validates and
+# measures what MQL5 exported and must not grow an opinion of its own, so
+# keeping it on the standard library is a design constraint, not an accident.
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+# `python -m pab_research` is the documented entry point; this adds an
+# equivalent console script for callers who prefer not to use -m.
+pab-research = "pab_research.report:main"
+
+[tool.setuptools]
+# Explicit rather than relying on auto-discovery, so adding a stray directory
+# under research/ cannot silently change what gets packaged.
+packages = ["pab_research"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

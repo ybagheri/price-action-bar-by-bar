@@ -9,6 +9,19 @@
 - `research/tests` — Python unit tests.
 - `NinjaTrader` — secondary unverified port.
 
+## Environment setup
+
+The research package must be installed before any documented command works:
+
+```powershell
+cd research
+python -m pip install -e .
+```
+
+Without it `python -m pab_research` fails with `No module named
+pab_research`, because an embeddable Python build ignores `PYTHONPATH` and
+the implicit current directory. See `TESTING.md`.
+
 ## Change discipline
 
 1. Keep detection separate from decision, risk, explanation, and rendering.
