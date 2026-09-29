@@ -44,6 +44,12 @@ class SetupEvent:
     engine_version: str = ""
     parameter_version: str = ""
     setup_type: str = "none"
+    # ``symbol`` and ``period`` were appended to the export after the first
+    # release. They default to "" so files written by an older build still
+    # load, and multi-instrument grouping reports them as "unspecified"
+    # instead of silently discarding those rows.
+    symbol: str = ""
+    period: str = ""
 
     def __post_init__(self) -> None:
         validate_event_timing(self)
@@ -102,6 +108,8 @@ def load_setup_events(path: str) -> list[SetupEvent]:
                     engine_version=row["engine_version"],
                     parameter_version=row["parameter_version"],
                     setup_type=row.get("setup_type") or "none",
+                    symbol=row.get("symbol") or "",
+                    period=row.get("period") or "",
                 )
             )
     events.sort(key=lambda event: event.decision_time)

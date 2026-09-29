@@ -188,9 +188,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("bars_csv", help="CSV with open_time, high, low columns")
     parser.add_argument(
         "--group",
-        choices=("setup", "status"),
+        choices=("setup", "status", "instrument"),
         default="setup",
-        help="group the report by setup_type or by engine status",
+        help="group the report by setup_type, engine status, or symbol",
+    )
+    parser.add_argument(
+        "--walk-forward",
+        type=int,
+        metavar="N",
+        help=(
+            "split the event stream chronologically into N alternating "
+            "in-sample/out-of-sample blocks and report the degradation gap"
+        ),
+    )
+    parser.add_argument(
+        "--walk-forward-min-resolved",
+        type=int,
+        default=5,
+        help="mark a walk-forward result unreliable below this many resolved outcomes",
+    )
+    parser.add_argument(
+        "--walk-forward-per-instrument",
+        action="store_true",
+        help="run the walk-forward split separately for each symbol",
     )
     args = parser.parse_args(argv)
 
@@ -200,7 +220,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("no events found")
         return 1
 
-    grouper = group_by_setup if args.group == "setup" else group_by_status
+    if args.walk_forward is not None:
+        from .validation import format_fold_report, instrument_walk_forward, split_walk_forward
+
+        try:
+            if args.walk_forward_per_instrument:
+                per_symbol = instrument_walk_forward(
+                    events, bars, args.walk_forward, args.walk_forward_min_resolved
+                )
+            else:
+                per_symbol = {
+                    "all": split_walk_forward(
+                        events, bars, args.walk_forward, args.walk_forward_min_resolved
+                    )
+                }
+        except ValueError as error:
+            print(f"walk-forward not possible: {error}")
+            return 1
+
+        for label, result in per_symbol.items():
+            print(format_fold_report(result))
+            print("")
+        return 0
+
+    if args.group == "setup":
+        grouper = group_by_setup
+    elif args.group == "instrument":
+        from .validation import group_by_instrument
+
+        grouper = group_by_instrument
+    else:
+        grouper = group_by_status
     title = f"{len(events)} events, {len(bars)} bars, grouped by {args.group}"
     print(format_report(grouper(events, bars), title))
     return 0
