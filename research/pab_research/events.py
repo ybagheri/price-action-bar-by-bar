@@ -57,6 +57,31 @@ class SetupEvent:
     # instead of silently discarding those rows.
     symbol: str = ""
     period: str = ""
+    # Phase 19. ``cost_r`` is the round-trip execution cost of this event
+    # expressed in R, i.e. in units of the event's own stop distance, which
+    # is what expectancy is denominated in. It is exported by the MQL5
+    # side and RECOMPUTED here by :func:`expected_cost_r` rather than
+    # trusted, so a mistyped column cannot quietly flatter a report.
+    #
+    # These three default to None/0 because every export written before
+    # Phase 19 lacks them. A missing cost column must not be read as a zero
+    # cost, so ``has_costs`` below is what the report actually branches on.
+    cost_r: float | None = None
+    spread_points: float = 0.0
+    cost_spread_price: float = 0.0
+    cost_slippage_price: float = 0.0
+    cost_commission_price: float = 0.0
+    cost_model: str = ""
+
+    @property
+    def has_costs(self) -> bool:
+        """Whether this row carries a cost figure at all.
+
+        An export from before Phase 19 has no ``cost_r`` column. Reading
+        that absence as ``0.0`` would produce a gross report wearing a net
+        label, which is the exact failure this project keeps catching.
+        """
+        return self.cost_r is not None
 
     def __post_init__(self) -> None:
         validate_event_timing(self)
@@ -76,6 +101,49 @@ class SetupEvent:
             raise ValueError("long levels must satisfy invalidation < entry < target")
         if self.direction == "short" and not self.target < self.entry < self.invalidation:
             raise ValueError("short levels must satisfy target < entry < invalidation")
+
+
+def _optional_float(row: dict, key: str) -> float | None:
+    """Read a numeric column, treating an absent or blank one as missing.
+
+    A blank cost column must not become 0.0. Zero is a real measurement
+    meaning "this trade was free", while a blank means the export predates
+    the column, and conflating the two is how a gross figure ends up
+    wearing a net label.
+    """
+    raw = row.get(key)
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    return float(text)
+
+
+def expected_cost_r(event: SetupEvent) -> float | None:
+    """Recompute an event's round-trip cost in R from its exported prices.
+
+    This is deliberately a re-derivation rather than a read of
+    ``event.cost_r``. The MQL5 side computes the same number, and if the
+    two ever disagree the honest response is to say so, not to prefer
+    whichever one is more convenient.
+
+    The formula is the one in ``TradingCost.mqh``: the full spread plus
+    slippage on BOTH sides plus the round-trip commission, all divided by
+    the event's own stop distance. A row with no levels has no trade and
+    no cost, which is 0.0 rather than a division by zero.
+    """
+    if event.direction == "none" or event.entry <= 0 or event.invalidation <= 0:
+        return 0.0
+    risk = abs(event.entry - event.invalidation)
+    if risk <= 0.0:
+        return 0.0
+    cost_price = (
+        event.cost_spread_price
+        + 2.0 * event.cost_slippage_price
+        + event.cost_commission_price
+    )
+    return cost_price / risk
 
 
 def validate_event_timing(event: SetupEvent) -> None:
@@ -242,6 +310,12 @@ def load_setup_events(path: str) -> list[SetupEvent]:
                     setup_type=row.get("setup_type") or "no_trade",
                     symbol=row.get("symbol") or "",
                     period=row.get("period") or "",
+                    cost_r=_optional_float(row, "cost_r"),
+                    spread_points=float(row.get("spread_points") or 0.0),
+                    cost_spread_price=float(row.get("cost_spread_price") or 0.0),
+                    cost_slippage_price=float(row.get("cost_slippage_price") or 0.0),
+                    cost_commission_price=float(row.get("cost_commission_price") or 0.0),
+                    cost_model=(row.get("cost_model") or "").strip(),
                 )
             )
     events.sort(key=lambda event: event.decision_time)

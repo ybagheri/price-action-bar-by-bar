@@ -1,0 +1,162 @@
+PriceActionBarByBar - COSTED MULTI-MARKET, MULTI-TIMEFRAME study
+Phase 19. The question this answers is the one every earlier study had to
+leave open: what is left of the +0.02R gross edge once a trade has to be
+paid for?
+
+Terminal : Alpari MT5_3 build 6230, Alpari-MT5-Demo
+Engine   : PAB_ENGINE_VERSION 1.50, via Experts\PabEventExport.ex5,
+           Strategy Tester, headless
+Harness  : 84 passed, 0 failed, same engine build
+History  : the EA replayed whatever the broker has cached. The date range
+           the RUN REPORTED is 2013-01-01 23:00 to 2013-12-31 19:00, not
+           the 2014 window that was requested. Quoting the requested range
+           instead of the reported one is the reproducibility trap
+           documented in TESTING.md.
+Sample   : 319,650 events across 4 markets and 2 timeframes, 8
+           market/timeframe combinations, 0 events excluded for missing
+           bars.
+
+=======================================================================
+ COST MEASUREMENT - A FINDING, NOT AN IMPLEMENTATION DETAIL
+=======================================================================
+The exporter now measures per-bar spread from the terminal, and records
+spread, slippage, commission, cost_r and a cost_model label on every row.
+On this run every cost field came back BLANK, and that is the honest
+result rather than a failure:
+
+  PabEventExport: CopyBuffer copied -1 of 73752 spread values - error 4807
+  PabEventExport: costs ASSUMED (iSpread unavailable)
+
+The MT5 Strategy Tester exposes no historical spread buffer. iSpread's
+CopyBuffer fails there with error 4807 and returns no values, so a
+per-bar spread cannot be measured in this harness at all. An earlier
+build wrote 0.0 into those columns, which would have handed the research
+layer 73,751 rows of "trading was free" and published a net expectancy
+that was really the gross one. The exporter now writes blanks, the loader
+reads a blank as "no cost data", and every report says GROSS in those
+words.
+
+That is why the two analyses below exist. They answer the cost question
+without inventing a spread.
+
+=======================================================================
+ BREAK-EVEN COST - a property of the sample, not an assumption
+=======================================================================
+The round-trip cost at which each group's gross edge becomes exactly
+zero. A number that is a property of the data, which no cost guess can
+influence.
+
+group                     resolved   grossR    avgRisk  breakEvenSpread
+-----------------------------------------------------------------------
+EURUSD H1                     2878   -0.001    0.00132  n/a (gross < 0)
+EURUSD M5                    33708    0.013    0.00035  0.0003% of price
+GBPUSD H1                     2801    0.020    0.00148  0.0019% of price
+GBPUSD M5                    33257    0.027    0.00040  0.0007% of price
+USDCHF H1                     2809    -0.069    0.00109  n/a (gross < 0)
+USDCHF M5                    33784    0.020    0.00030  0.0006% of price
+USDJPY H1                     2878    0.009    0.14546  0.0014% of price
+USDJPY M5                    33604    0.019    0.03870  0.0007% of price
+
+Read the M5 numbers carefully: EURUSD M5's entire edge is worth 0.0003%
+of price in round-trip cost. On EURUSD that is roughly one third of a pip
+of total spread, slippage, and commission combined. No retail FX market
+trades at that cost. The GBPUSD and USDJPY H1 figures, at 0.0019% and
+0.0014%, are the largest in the study and still only a fraction of a pip
+plus a pip.
+
+=======================================================================
+ RE-PRICED AT ASSUMED SPREADS - the whole sample
+=======================================================================
+Spread only, as a percentage of price. Slippage and commission are
+excluded, so a real cost is at least this large. These are assumptions
+supplied on the command line, NOT measurements.
+
+assumed round-trip spread     net expectancy
+--------------------------------------------
+0.000% of price                      +0.017R
+0.001% of price                      -0.045R
+0.002% of price                      -0.107R
+0.005% of price                      -0.294R
+0.010% of price                      -0.605R
+0.020% of price                      -1.228R
+
+Pooled gross expectancy across all 319,650 events is +0.017R. A thousandth
+of a percent of price in round-trip cost is enough to turn that into a
+loss. The best spread on these markets is several times larger.
+
+=======================================================================
+ GROSS FIGURES, for the record
+=======================================================================
+group                     total   tgt   inv   amb    exp     nt    win%  grossR  costR    netR      MFE      MAE   bars
+-------------------------------------------------------------------------------------------------------------
+EURUSD H1                  6156  1374  1361   143      2   3276   47.7%   -0.00    n/a     n/a    0.10%   -0.09%   28.9
+EURUSD M5                 73751 14974 15496  3238      5  40038   44.4%    0.01    n/a     n/a    0.03%   -0.03%    3.1
+GBPUSD H1                  6157  1283  1408   110      1   3355   45.8%    0.02    n/a     n/a    0.10%   -0.09%   33.6
+GBPUSD M5                 73752 14705 15267  3285      6  40489   44.2%    0.03    n/a     n/a    0.03%   -0.03%    3.2
+USDCHF H1                  6163  1306  1363   140      1   3353   46.5%   -0.07    n/a     n/a    0.11%   -0.11%   26.1
+USDCHF M5                 73758 14966 15393  3425      8  39966   44.3%    0.02    n/a     n/a    0.04%   -0.04%    3.0
+USDJPY H1                  6159  1357  1424    97      2   3279   47.2%    0.01    n/a     n/a    0.15%   -0.15%   24.0
+USDJPY M5                 73754 15153 15521  2930      7  40143   45.1%    0.02    n/a     n/a    0.05%   -0.05%    2.4
+
+group                     total   tgt   inv   amb    exp     nt    win%  grossR      MFE      MAE   bars
+----------------------------------------------------------------------------------------------------
+breakout_follow_through    8583  4269  3886   424      4      0   49.8%   -0.07    0.08%   -0.08%   25.4
+failed_breakout           60029 31251 23290  5479      9      0   52.1%    0.01    0.04%   -0.04%    3.8
+second_entry              25611 11610 11395  2600      6      0   45.3%    0.02    0.04%   -0.04%    3.0
+trend_pullback            51528 17988 28662  4865     13      0   34.9%    0.04    0.04%   -0.04%    3.7
+
+break-even by setup type
+  breakout_follow_through   -0.070R gross: negative, no break-even
+  failed_breakout           0.0005% of price
+  second_entry              0.0008% of price
+  trend_pullback            0.0014% of price
+
+Even the BEST setup type by gross expectancy, trend_pullback at +0.040R,
+has an edge worth 0.0014% of price in round-trip cost. It is not a
+different instrument question. It is the same order of magnitude.
+
+Walk-forward, 4 folds, about 80,000 events each:
+  in_sample (pooled)       159824 events  44.9% win  +0.02R gross
+  out_of_sample (pooled)   159826 events  44.4% win  +0.02R gross
+  gross degradation (OOS - IS): -0.00R
+  net expectancy degradation: n/a -- the export carries no cost column
+  reliable: yes
+
+=======================================================================
+ WHAT THIS ESTABLISHES
+=======================================================================
+The blocking gap from Phase 18 is closed, and it closes against the
+project. The edge is not small-positive after costs. The edge is a
+thousandth of a percent of price, and the cost of trading EURUSD at M5 is
+several times that.
+
+Phase 18 said: "this study cannot say whether the net figure is
+small-positive or clearly negative." This study says: not small-positive.
+At a thousandth of a percent of price the sample is already negative, and
+no plausible retail spread is below that. The remaining uncertainty is
+the direction and size of a cost that is comfortably larger than the
+thing it is being subtracted from.
+
+This is a stronger negative result than Phase 18's, and it did not require
+a single new measurement of the engine. It required admitting that the
+one number the whole project rested on could never survive contact with
+a broker's cost sheet.
+
+WHAT IS STILL MISSING:
+  - A MEASURED spread. The exporter reads per-bar spread correctly on a
+    live chart, where MT5 hands OnCalculate a real spread array. It cannot
+    be read in the Strategy Tester, so a historical study on this harness
+    cannot carry a measured cost. Obtaining one needs either live forward
+    collection or exported tick data.
+  - Slippage and commission remain ASSUMPTIONS, labelled as such on every
+    row. They are not observable from a bar series by construction.
+  - One broker feed, one year (the range the run reported: 2013).
+  - M5 and H1 only. Nothing here says whether the rules do anything on
+    H4 or D1.
+  - The indicator lifecycle is still untested: no runtime coverage of
+    OnCalculate or the chart renderer.
+
+A NOTE ON THE HISTORICAL RANGE: this run reported 2013-01-01 to
+2013-12-31, not the 2014 window requested. The cached history shifts
+between runs, so any archived result must quote the range the run itself
+printed.

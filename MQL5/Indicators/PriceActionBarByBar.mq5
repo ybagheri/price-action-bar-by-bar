@@ -34,6 +34,7 @@
 
 #include "../Include/PriceActionBarByBar/PAB_Types.mqh"
 #include "../Include/PriceActionBarByBar/PAB_Utils.mqh"
+#include "../Include/PriceActionBarByBar/TradingCost.mqh"
 #include "../Include/PriceActionBarByBar/PabEngine.mqh"
 #include "../Include/PriceActionBarByBar/ChartRenderer.mqh"
 
@@ -67,6 +68,14 @@ input int    InpMinimumQuality     = 55;
 input double InpMinimumRiskReward  = 1.50;
 input bool   InpExportEvents       = false;
 input string InpEventFile          = "pab_events.csv";
+
+input group "=== Execution Costs (Phase 19) ==="
+// Spread is MEASURED from the per-bar spread array MT5 hands OnCalculate.
+// These two are ASSUMED: neither is observable from a bar series, so they
+// are inputs, and every exported row labels them "assumed".
+input double InpSlippagePoints     = 0.0;   // Assumed, per side. 0 = none.
+input double InpCommissionPerLot   = 0.0;   // Assumed, account currency, round trip, per lot
+input double InpLotSize            = 1.0;   // Lot size the commission is quoted for
 
 input group "=== Breakout / Climax (Phase 3) ==="
 input int    InpBreakoutLookback   = 10;     // Bars to check for a fresh extreme to qualify as a breakout bar
@@ -115,6 +124,11 @@ SSetupCandidate     g_candidate;
 string              g_objectPrefix = "";
 
 int                 g_eventFileHandle = INVALID_HANDLE;
+
+// Broker facts for the cost model, read once in OnInit.
+double              g_point      = 0.0;
+double              g_tickValue  = 0.0;
+double              g_tickSize   = 0.0;
 
 bool BuildEngineConfig(SEngineConfig &cfg)
   {
@@ -167,11 +181,23 @@ bool ValidateInputs()
       InpBreakoutClvMin < 0.0 || InpBreakoutClvMin > 1.0 ||
       InpClimaxLookback < 2 || InpClimaxLookback > 500 ||
       InpClimaxRangeMult <= 0.0 ||
-      InpClimaxBodyRatioMax < 0.0 || InpClimaxBodyRatioMax > 1.0)
-     {
+       InpClimaxBodyRatioMax < 0.0 || InpClimaxBodyRatioMax > 1.0 ||
+       InpSlippagePoints < 0.0 ||
+       InpCommissionPerLot < 0.0 ||
+       InpLotSize <= 0.0)
+      {
       Print("PriceActionBarByBar: invalid input parameters");
       return(false);
-     }
+      }
+
+   // A currency commission is meaningless without the broker's tick value.
+   // Failing here beats exporting cost_r = 0 and letting a reader assume
+   // trading was free.
+   string costReason = "";
+   if(!ReadSymbolCostFacts(_Symbol, g_point, g_tickValue, g_tickSize, costReason))
+      PrintFormat("PriceActionBarByBar: %s. Any commission will export as 0.0 and be "
+                  "labelled, so a cost-free export cannot be mistaken for a free one.",
+                  costReason);
    return(true);
   }
 
@@ -212,13 +238,15 @@ int OnInit()
                      InpEventFile, GetLastError());
          return(INIT_FAILED);
         }
-      if(FileSize(g_eventFileHandle) == 0)
-         FileWrite(g_eventFileHandle,
-                   "event_id", "direction", "setup_type", "status",
-                   "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
-                   "entry", "invalidation", "target", "risk_reward", "quality",
-                   "engine_version", "parameter_version",
-                   "symbol", "period");
+       if(FileSize(g_eventFileHandle) == 0)
+          FileWrite(g_eventFileHandle,
+                    "event_id", "direction", "setup_type", "status",
+                    "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
+                    "entry", "invalidation", "target", "risk_reward", "quality",
+                    "engine_version", "parameter_version",
+                    "symbol", "period",
+                    "spread_points", "cost_spread_price", "cost_slippage_price",
+                    "cost_commission_price", "cost_r", "cost_model");
       else
          FileSeek(g_eventFileHandle, 0, SEEK_END);
      }
@@ -375,25 +403,66 @@ int OnCalculate(const int rates_total,
             // decision_time equals bar_close_time, which is the invariant
             // the research layer enforces.
             datetime closeTime = g_candidate.barTime + PeriodSeconds(_Period);
-            string parameterVersion = StringFormat("q%d|rr%.2f|f%d|l%.2f|s%.2f|b%d|c%.2f",
+             string parameterVersion = StringFormat("q%d|rr%.2f|f%d|l%.2f|s%.2f|b%d|c%.2f",
                                                   InpMinimumQuality, InpMinimumRiskReward,
                                                   InpFractalLegs, InpLargeRangeMult, InpSmallRangeMult,
                                                   InpBreakoutLookback, InpClimaxRangeMult);
-            FileWrite(g_eventFileHandle,
-                      StringFormat("%I64d-%d", (long)g_candidate.barTime, g_candidate.qualityScore),
-                      SetupDirectionLabel(g_candidate.direction), SetupTypeLabel(g_candidate.type),
-                      SetupStatusLabel(g_candidate.status),
-                      IsoTimestamp(g_candidate.barTime),
-                      IsoTimestamp(closeTime),
-                      IsoTimestamp(closeTime),
-                      IsoTimestamp(closeTime),
-                      DoubleToString(g_candidate.entryPrice, _Digits),
-                      DoubleToString(g_candidate.stopPrice, _Digits),
-                      DoubleToString(g_candidate.targetPrice, _Digits),
-                      DoubleToString(g_candidate.riskReward, 4),
-                      g_candidate.qualityScore,
-                      PAB_ENGINE_VERSION, parameterVersion,
-                      _Symbol, PeriodLabel(_Period));
+
+             // PHASE 19. The chart is handed the broker's own spread array,
+             // one value per bar, so the spread charged here is the spread
+             // that actually applied on the bar the decision was taken on
+             // rather than a run-wide average or a typed-in guess.
+             // Index 1 is the same bar the decision is made from, matching
+             // the rest of this function.
+             //
+             // If that array is somehow absent the cost is UNKNOWN, not
+             // free, and every cost field is written blank so the research
+             // layer reports the file as gross. Writing 0.0 instead would
+             // be a fabricated claim that trading this market costs
+             // nothing.
+             bool spreadKnown = (ArraySize(spread) > 1);
+             SCostModel rowCost;
+             rowCost.spreadPoints     = spreadKnown ? (double)spread[1] : 0.0;
+             rowCost.spreadPrice      = rowCost.spreadPoints * _Point;
+             rowCost.spreadMeasured   = spreadKnown;
+             rowCost.slippagePrice    = InpSlippagePoints * _Point;
+             rowCost.slippagePoints   = InpSlippagePoints;
+             rowCost.commissionPrice  = CTradingCost::CommissionPriceFromPerLot(
+                                          InpCommissionPerLot, InpLotSize, g_tickValue, g_tickSize);
+             if(g_candidate.status == STATUS_NO_TRADE)
+               {
+                rowCost.spreadPrice    = 0.0;
+                rowCost.spreadPoints   = 0.0;
+                rowCost.spreadMeasured = false;
+               }
+
+             // A NO TRADE row carries a KNOWN zero, because it has no
+             // levels and so no cost. Only an unmeasured spread is blank.
+             bool rowKnown = spreadKnown || g_candidate.status == STATUS_NO_TRADE;
+
+             FileWrite(g_eventFileHandle,
+                       StringFormat("%I64d-%d", (long)g_candidate.barTime, g_candidate.qualityScore),
+                       SetupDirectionLabel(g_candidate.direction), SetupTypeLabel(g_candidate.type),
+                       SetupStatusLabel(g_candidate.status),
+                       IsoTimestamp(g_candidate.barTime),
+                       IsoTimestamp(closeTime),
+                       IsoTimestamp(closeTime),
+                       IsoTimestamp(closeTime),
+                       DoubleToString(g_candidate.entryPrice, _Digits),
+                       DoubleToString(g_candidate.stopPrice, _Digits),
+                       DoubleToString(g_candidate.targetPrice, _Digits),
+                       DoubleToString(g_candidate.riskReward, 4),
+                       g_candidate.qualityScore,
+                       PAB_ENGINE_VERSION, parameterVersion,
+                       _Symbol, PeriodLabel(_Period),
+                       (rowKnown ? DoubleToString(rowCost.spreadPoints, 1) : ""),
+                       (rowKnown ? DoubleToString(rowCost.spreadPrice, _Digits) : ""),
+                       (rowKnown ? DoubleToString(rowCost.slippagePrice, _Digits) : ""),
+                       (rowKnown ? DoubleToString(rowCost.commissionPrice, _Digits) : ""),
+                       (rowKnown ? DoubleToString(CTradingCost::CostInR(rowCost,
+                                            g_candidate.entryPrice, g_candidate.stopPrice), 4) : ""),
+                       (rowKnown ? rowCost.Model()
+                                 : "unknown: no per-bar spread was supplied for this bar"));
            }
         }
      }

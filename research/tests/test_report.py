@@ -245,6 +245,9 @@ class GroupingTests(unittest.TestCase):
         self.assertIn("second_entry", text)
         self.assertIn("resolved outcomes only", text)
         self.assertIn("commission", text)
+        # Phase 19: this fixture has no cost column, so the report has to
+        # say the figures are gross rather than implying they are net.
+        self.assertIn("carries no cost column", text)
 
 
 class EventContractTests(unittest.TestCase):

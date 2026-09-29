@@ -1,0 +1,53 @@
+MQL5 regression harness, executed HEADLESSLY in the MT5 Strategy Tester.
+
+Supersedes research/test_artifacts/mql5_harness_20260929_headless.txt
+(69 passed). This run adds the Phase 19 execution-cost group.
+
+Run at   : 2026-09-29 20:48:04
+Terminal: Alpari MT5_3 build 6230
+Expert  : Experts\PAB_HarnessEA.ex5
+Symbol  : EURUSD,M5, 2026.06.01 to 2026.06.05
+           (the suite is symbol-independent; it runs on synthetic fixtures)
+Duration: ~0.15 s
+
+VERDICT: PASS - 84 passed, 0 failed
+
+--- pab_harness.txt (verbatim) ---
+engine_version 1.50
+build 6230
+symbol EURUSD
+result 84 0
+verdict PASS
+--- end summary ---
+
+Coverage: 15 groups covering bar classification, pullback numbering, swing
+detection, range/trend state, pattern detection, normalized pattern slopes,
+breakout and climax, Always-In, measured move, idempotent updates, stale
+range clearing, context and decision composition, the target and NO TRADE
+contract, the failed-breakout definition, and execution costs.
+
+Scope limit, stated so it is not over-read: these are unit tests over the
+analyzer classes. They do NOT cover CPabEngine, the indicator's OnCalculate,
+the chart renderer, or the event export. Those are covered only by the
+historical replay, which exercises the engine but not the chart lifecycle.
+
+THE 15 NEW ASSERTIONS ARE ABOUT EXECUTION COSTS, and they exist because
+the cost arithmetic is the step that silently produces a plausible wrong
+number rather than an error. Pinned:
+
+  - A 0.00020 spread against a 0.00200 stop is exactly 0.10R. This ratio
+    is the whole finding: it is why a +0.02R gross edge cannot survive.
+  - Cost in R falls when the stop widens, holding spread fixed.
+  - Slippage is charged on BOTH sides: 0.00005 per side plus a 0.00020
+    spread is 0.00030 round trip, 0.15R against that stop.
+  - A $7.00 per-lot round-trip commission is a 0.00007 price distance at
+    $1 per tick per lot, and scales inversely with lot size.
+  - An unavailable tick value, a zero lot size, and a zero commission each
+    yield 0.0 rather than a division by zero. A missing broker fact must
+    never become a free cost, nor an infinite one.
+  - A row with no levels yields 0.0R instead of dividing by zero. That is
+    the NO TRADE case.
+  - The cost label contains "assumed" when the spread came from the
+    configured fallback, when slippage is non-zero, and when commission is
+    non-zero; and does NOT when the spread is measured with nothing else
+    assumed. A cost that hides its own provenance is not evidence.

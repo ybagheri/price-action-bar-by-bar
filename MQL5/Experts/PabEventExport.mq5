@@ -30,12 +30,17 @@
 //|     normalize displacement against the wrong values.               |
 //|   - When ATR is requested but unavailable, the fallback is logged  |
 //|     and disclosed in the CSV rather than hidden.                   |
+//|   - Every row carries its own spread_points, cost_r, and a cost    |
+//|     label, so an archived file states its cost assumptions instead |
+//|     of requiring this script to still exist. Anything assumed is   |
+//|     labelled "assumed" in the label. PHASE 19.                     |
 //+------------------------------------------------------------------+
 #property strict
 #property version   "1.00"
 
 #include "../Include/PriceActionBarByBar/PAB_Types.mqh"
 #include "../Include/PriceActionBarByBar/PAB_Utils.mqh"
+#include "../Include/PriceActionBarByBar/TradingCost.mqh"
 #include "../Include/PriceActionBarByBar/PabEngine.mqh"
 
 input group "=== Replay range ==="
@@ -80,6 +85,16 @@ input double InpBreakoutClvMin     = 0.50;
 input int    InpClimaxLookback     = 20;
 input double InpClimaxRangeMult    = 2.0;
 input double InpClimaxBodyRatioMax = 0.35;
+
+input group "=== Execution costs (Phase 19) ==="
+// Spread is MEASURED per bar from the terminal's own record; these two are
+// ASSUMED, because neither is observable from a bar series. Both are
+// written onto every exported row, labelled "assumed", so an archived file
+// states its own cost assumptions instead of relying on this script.
+input double InpSlippagePoints     = 0.0;    // Assumed, per side. 0 = none.
+input double InpCommissionPerLot   = 0.0;    // Assumed, account currency, round trip, per lot
+input double InpLotSize            = 1.0;    // Lot size the commission is quoted for
+input int    InpFallbackSpreadPoints = 0;    // Used only if the measured spread is unavailable
 
 input group "=== Output ==="
 input string InpEventFile          = "pab_events.csv";
@@ -277,10 +292,96 @@ int OnInit()
          IndicatorRelease(handle);
         }
      }
-   if(!atrOk)
-      ArrayFree(atr);
+    if(!atrOk)
+       ArrayFree(atr);
 
-   //--- optional bar history for outcome evaluation ---------------------
+    //--- per-bar spread, measured (Phase 19) -----------------------------
+    // Cost is the whole reason this file exists, and a cost model with an
+    // assumed spread is a guess wearing a decimal point. iSpread is the
+    // terminal's own record of what each bar traded at, so it is used
+    // directly and per bar rather than once for the run: spread widens at
+    // the London open and again at rollover, and a single run-wide number
+    // would average those away.
+    //
+    // It is read the same way ATR is, by raw buffer and hand indexing,
+    // because CopyBuffer is series-aligned to the terminal's chart and
+    // NOT to the arrays being replayed here.
+    double spreadPts[];
+    ArrayResize(spreadPts, n);
+    bool spreadOk = false;
+    int  spreadHandle = iSpread(_Symbol, _Period, 1);
+    if(spreadHandle == INVALID_HANDLE)
+       PrintFormat("PabEventExport: iSpread failed, falling back to the configured "
+                   "spread points - error %d", GetLastError());
+    else
+      {
+       double rawSpread[];
+       ArraySetAsSeries(rawSpread, true);
+       int gotSpread = CopyBuffer(spreadHandle, 0, 0, n, rawSpread);
+       if(gotSpread == n)
+         {
+          for(int i = 0; i < n; i++)
+             spreadPts[i] = rawSpread[i];
+          spreadOk = true;
+         }
+       else
+          PrintFormat("PabEventExport: CopyBuffer copied %d of %d spread values - error %d",
+                      gotSpread, n, GetLastError());
+       IndicatorRelease(spreadHandle);
+      }
+    if(!spreadOk)
+       ArrayFree(spreadPts);
+
+    //--- is the cost of a trade even knowable? --------------------------
+    // A spread of zero and an UNKNOWN spread are different states, and
+    // this run cannot tell them apart. Writing 0.0 for an unmeasured
+    // spread would hand the research layer a cost column full of zeros
+    // and let it publish a "net" expectancy that is really just the
+    // gross one wearing a net label. So when the spread is neither
+    // measured nor configured, every cost field is written BLANK and the
+    // loader reads that as "no cost data", which is what it is.
+    //
+    // This is not hypothetical. The first Phase 19 replay ran against
+    // Alpari-MT5-Demo, where CopyBuffer on the iSpread handle returned
+    // error 4807 and no values at all, so a naive export would have
+    // published 73,751 rows of costless trading.
+    bool spreadKnown = spreadOk || InpFallbackSpreadPoints > 0;
+    if(!spreadKnown)
+       Print("PabEventExport: NO COST DATA. The spread could not be measured (see above) "
+             "and no fallback was configured, so every cost field is written blank. "
+             "Any report over this file is GROSS. Set InpFallbackSpreadPoints to state a "
+             "spread assumption, and note that the export will then label it 'assumed'.");
+
+    //--- cost model ------------------------------------------------------
+    // Point size, tick size, and tick value come from the broker and are
+    // read once. If any is unavailable the commission conversion is not
+    // possible, and saying so beats silently reporting a free commission:
+    // a currency cost divided by a price distance is not a number.
+    double c_point = 0.0, c_tickValue = 0.0, c_tickSize = 0.0;
+    string costReason = "";
+    bool factsOk = ReadSymbolCostFacts(_Symbol, c_point, c_tickValue, c_tickSize, costReason);
+    if(!factsOk)
+       PrintFormat("PabEventExport: %s. Commission will be exported as 0.0 and the "
+                   "export will label it, so a reader cannot mistake this run for a "
+                   "cost-free one.", costReason);
+
+    SCostModel baseCost;
+    baseCost.spreadPrice      = 0.0;
+    baseCost.spreadPoints     = 0.0;
+    baseCost.spreadMeasured   = spreadOk;
+    baseCost.slippagePrice    = InpSlippagePoints * c_point;
+    baseCost.slippagePoints   = InpSlippagePoints;
+    baseCost.commissionPrice  = (factsOk
+                                 ? CTradingCost::CommissionPriceFromPerLot(InpCommissionPerLot,
+                                                                          InpLotSize, c_tickValue, c_tickSize)
+                                 : 0.0);
+    PrintFormat("PabEventExport: costs %s, spread %s (%.1f points on this symbol), "
+                "slippage %.1f points per side, commission %.8f price distance per lot",
+                spreadOk ? "MEASURED per bar" : "ASSUMED (iSpread unavailable)",
+                spreadOk ? "measured" : "assumed", (double)InpFallbackSpreadPoints,
+                InpSlippagePoints, baseCost.commissionPrice);
+
+    //--- optional bar history for outcome evaluation ---------------------
    // pab_research needs open_time/high/low to measure what happened after
    // each event. It cannot derive them from the event file, and exporting
    // them by hand from the chart is a step that goes stale. The tail is
@@ -376,14 +477,16 @@ int OnInit()
                   InpEventFile, GetLastError());
       return(INIT_FAILED);
      }
-   if(FileSize(g_file) == 0)
-      FileWrite(g_file,
-                "event_id", "direction", "setup_type", "status",
-                "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
-                "entry", "invalidation", "target", "risk_reward", "quality",
-                "engine_version", "parameter_version", "symbol", "period");
-   else
-      FileSeek(g_file, 0, SEEK_END);
+    if(FileSize(g_file) == 0)
+       FileWrite(g_file,
+                 "event_id", "direction", "setup_type", "status",
+                 "bar_open_time", "bar_close_time", "confirmed_at", "decision_time",
+                 "entry", "invalidation", "target", "risk_reward", "quality",
+                 "engine_version", "parameter_version", "symbol", "period",
+                 "spread_points", "cost_spread_price", "cost_slippage_price",
+                 "cost_commission_price", "cost_r", "cost_model");
+    else
+       FileSeek(g_file, 0, SEEK_END);
 
    //--- replay ----------------------------------------------------------
    // Oldest first, so each analyzer sees the bars in the same order it
@@ -406,6 +509,33 @@ int OnInit()
       if(DoubleToString(candidate.entryPrice, _Digits) == "")
         { g_incomplete++; continue; }
 
+      //--- per-row cost, from the spread of THIS bar --------------------
+      // A NO TRADE row has no levels and no spread worth charging, so its
+      // cost is 0.0 and its label says so. Every other row carries the
+      // measured spread of the bar the decision was taken on, so the
+      // research layer can recompute cost_r rather than trusting it.
+      SCostModel rowCost = baseCost;
+      rowCost.spreadPoints = spreadOk ? spreadPts[i] : (double)InpFallbackSpreadPoints;
+      rowCost.spreadPrice  = rowCost.spreadPoints * c_point;
+      if(candidate.status == STATUS_NO_TRADE)
+        {
+         rowCost.spreadPrice  = 0.0;
+         rowCost.spreadPoints = 0.0;
+         rowCost.spreadMeasured = false;
+        }
+
+      // Blank rather than 0.0 when the cost is genuinely unknown. A NO
+      // TRADE row is different: it carries 0.0, because it has no levels
+      // and therefore no cost, and that zero IS known.
+      string spreadOut   = spreadKnown ? DoubleToString(rowCost.spreadPoints, 1)     : "";
+      string spreadPx    = spreadKnown ? DoubleToString(rowCost.spreadPrice, _Digits) : "";
+      string slippagePx  = (spreadKnown ? DoubleToString(rowCost.slippagePrice, _Digits)   : "");
+      string commissionPx= (spreadKnown ? DoubleToString(rowCost.commissionPrice, _Digits) : "");
+      string costR       = (spreadKnown ? DoubleToString(CTradingCost::CostInR(rowCost,
+                                                 candidate.entryPrice, candidate.stopPrice), 4) : "");
+      string modelOut    = spreadKnown ? rowCost.Model()
+                                       : "unknown: spread could not be measured and no fallback was set";
+
       FileWrite(g_file,
                 StringFormat("%I64d-%d", (long)candidate.barTime, candidate.qualityScore),
                 DirectionLabel(candidate.direction), TypeLabel(candidate.type),
@@ -420,15 +550,18 @@ int OnInit()
                 DoubleToString(candidate.riskReward, 4),
                 candidate.qualityScore,
                 PAB_ENGINE_VERSION, parameterVersion,
-                _Symbol, PeriodLabel(_Period));
+                _Symbol, PeriodLabel(_Period),
+                spreadOut, spreadPx, slippagePx, commissionPx, costR, modelOut);
       g_written++;
      }
 
-   Print("------------------------------------------------------");
-   PrintFormat(" RESULT: %d bars replayed, %d events written to %s, %d skipped",
+    Print("------------------------------------------------------");
+    PrintFormat(" RESULT: %d bars replayed, %d events written to %s, %d skipped",
                n - 1, g_written, InpEventFile, g_incomplete);
-   Print(" No orders were placed. This is decision-support output only.");
-   Print("======================================================");
+    Print(" No orders were placed. This is decision-support output only.");
+    PrintFormat(" COST MODEL: %s", spreadKnown ? baseCost.Model()
+                                             : "UNKNOWN - every cost field written blank");
+    Print("======================================================");
    return(INIT_SUCCEEDED);
   }
 

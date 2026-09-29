@@ -68,8 +68,56 @@
 - **Multi-market, multi-timeframe study: 242,473 events, EURUSD/GBPUSD/USDCHF/
   USDJPY at M5 and H1, 2014.** Archived at
   `research/test_artifacts/study_multi_market_2014.txt`.
+- **`Include/PriceActionBarByBar/TradingCost.mqh`** (Phase 19): the one place
+  that decides what a trade costs. `RoundTripCostPrice`, `CostInR`, the
+  commission-to-price-distance conversion, `ReadSymbolCostFacts`, and a
+  self-describing cost label that marks every assumed number as assumed. Both
+  exporters and the regression harness call it, so there is one implementation
+  rather than three that agree until one is edited.
+- **Per-row cost columns in the event export**: `spread_points`, the three
+  price components, `cost_r`, and `cost_model`. Measured where the platform
+  supplies a measurement; blank where it does not, and labelled where a value
+  is an input rather than a reading.
+- `SetupStats` now separates `expectancy_r` (gross, unchanged in meaning),
+  `average_cost_r`, and `net_expectancy_r`, and the report prints all three as
+  `grossR`, `costR`, and `netR`. A group whose export lacks costs reads `n/a`
+  for both rather than repeating the gross figure.
+- `WalkForwardResult.net_expectancy_degradation_r`, reported alongside the
+  gross degradation. It is `None` when either pooled half lacks costs, so a
+  gross degradation can never be read as a net one.
+- `expected_cost_r`, which **recomputes** an event's cost from its exported
+  price components rather than trusting the exported `cost_r`. Disagreements
+  beyond rounding are counted and reported, and the recomputed value is the
+  one used.
+- `SetupEvent.has_costs`, which distinguishes "this row carries no cost data"
+  from "this trade was free". A blank cost column is `None`, never `0.0`.
+- **`--break-even`**: the round-trip cost at which each group's gross edge
+  becomes exactly zero. Reported as a percentage of price so it is comparable
+  across EURUSD at 1.10 and gold at 3400, and it needs no assumed spread at
+  all, so no cost guess can influence it.
+- **`--cost-scenario PERCENT`**, repeatable: re-prices the whole sample at an
+  assumed spread and reports net expectancy. Every row in that table is
+  labelled an assumption in its own header, because that is what it is.
+- `compare_cost_scenarios` and `format_cost_scenarios`.
+- `TestTradingCost`, a 15-assertion harness group pinning the cost arithmetic,
+  the commission conversion, the zero-denominator cases, and the labelling of
+  assumed values.
+- `research/tests/test_costs.py`: 40 tests over the cost model, the gross/net
+  split, the break-even solution, the scenarios, and the loader's handling of
+  absent and blank cost columns.
 
 ### Fixed
+
+- **The export wrote 0.0 into its cost columns when the spread could not be
+  measured.** The MT5 Strategy Tester exposes no historical spread buffer:
+  `iSpread`'s `CopyBuffer` fails there with error 4807 and returns no values.
+  The first Phase 19 build filled those columns with zeros, which would have
+  handed the research layer 73,751 rows asserting that trading was free, and
+  published a "net" expectancy that was really the gross one wearing a net
+  label. The exporter now writes **blanks**, the loader reads a blank as "no
+  cost data", and every report says GROSS in those words. This is the most
+  consequential single decision in the phase: a missing cost is not a zero
+  cost.
 
 - **A multi-market export could have been scored against the wrong market.**
   `evaluate_setup` took a single bar list, so concatenating seven
@@ -158,11 +206,13 @@ look like the real file.
 - MQL5 indicator: 0 compile errors, 0 warnings (Alpari MT5_3 build 6230).
 - MQL5 export EA: 0 compile errors, 0 warnings.
 - MQL5 harness: 0 compile errors, 0 warnings.
-- MQL5 harness runtime, **headless in the Strategy Tester**: 69 passed, 0 failed
-  (Alpari MT5_3 build 6230, 2026-09-29, 0.16 s). Archived at
-  `research/test_artifacts/mql5_harness_20260929_headless.txt`. The first
-  headless run was 67/1 and exposed the near-miss measured-move defect above.
-- Python research suite: 77 tests passed; `pytest` and `unittest` agree.
+- MQL5 harness runtime, **headless in the Strategy Tester**: **84 passed, 0
+  failed** (Alpari MT5_3 build 6230, 2026-09-29, ~0.15 s). Archived at
+  `research/test_artifacts/mql5_harness_20260929_cost.txt`. The first headless
+  run ever was 67/1 and exposed the near-miss measured-move defect above; the
+  previous archived run was 69/0.
+- MQL5 unit-test Script: 0 compile errors, 0 warnings.
+- Python research suite: **124 tests passed**; `pytest` and `unittest` agree.
 - Python `compileall`: passed.
 - **Multi-market, multi-timeframe study, headless:** 242,473 events across 4
   markets and 2 timeframes, 2014, all seven combinations measured, 0 events
@@ -174,8 +224,17 @@ look like the real file.
   11 seconds. Grouped report, status report, and a 4-fold walk-forward all
   produced. Archived at
   `research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+- **Costed multi-market study, headless:** 319,650 events, 4 markets,
+  2 timeframes, all eight combinations, 0 events excluded for missing bars.
+  Break-even, assumed-spread re-pricing, per-setup breakdown, and a 4-fold
+  walk-forward were all produced. Archived at
+  `research/test_artifacts/study_costed_multi_market_2013.txt`. Note the year
+  in that filename: the run **requested** 2014 and **replayed** 2013-01-01 to
+  2013-12-31, because that is the range the EA reported. Quoting the requested
+  range instead of the reported one is the reproducibility trap already
+  documented in `TESTING.md`.
 
-### Measured result, stated plainly
+### Measured result, gross only (Phase 18, superseded by the section below)
 
 **The engine shows no measurable edge, and ten times the data did not change
 that.** Across 242,473 events spanning EURUSD, GBPUSD, USDCHF and USDJPY at
@@ -189,12 +248,34 @@ bars to exit with slightly *negative* expectancy, while M5 setups average
 about 3 bars. An edge that needs 35 bars to resolve is a different claim from
 one that resolves in 3, and needs a different risk model.
 
-Every figure is **gross of spread, slippage, and commission**, because the
-export does not carry them. The measured edge is smaller than realistic costs
-by several times, so the net result is worse than shown. This is a
-measurement of the engine, not evidence that it works, and not evidence that
-it cannot work at a different cost or timeframe. No profitability claim is
-made.
+Every figure there is **gross of spread, slippage, and commission**, because
+the export did not carry them. The section below is what that costs.
+
+### Measured result, revised with costs (Phase 19)
+
+**The gross edge is worth a thousandth of a percent of price, and the cost of
+trading is several times that.** This is a stronger negative result than the
+gross-only study, and it required no new measurement of the engine. It
+required admitting that the number the whole project rested on could never
+survive contact with a broker's cost sheet.
+
+319,650 events across EURUSD, GBPUSD, USDCHF and USDJPY at M5 and H1, all eight
+market/timeframe combinations, about 33,000 resolved outcomes each. Pooled
+gross expectancy **+0.017R**, walk-forward degradation **-0.00R**.
+
+- **EURUSD M5: the entire edge is worth 0.0003% of price in round-trip cost.**
+  Roughly a third of a pip of spread, slippage and commission combined. No
+  retail FX market trades at that cost.
+- The largest break-even in the study is 0.0019% of price (GBPUSD H1).
+- Re-priced at a thousandth of a percent of price, the whole sample goes from
+  **+0.017R to -0.045R**. At 0.005% it is -0.294R; at 0.02%, -1.228R.
+
+The earlier report said this study "cannot say whether the net figure is
+small-positive or clearly negative." It can now: **not small-positive.**
+
+This is a statement about this engine's output on one broker's feed. It is
+**not** a refutation of the Al Brooks material the indicator is based on, and
+no profitability claim is made in either direction.
 
 ### Known gaps
 
@@ -202,16 +283,18 @@ made.
   the chart renderer. Duplicate ticks and history reload remain untested, and
   the chart path is compile-verified and replay-verified but not
   lifecycle-verified.
-- Costs are absent from the export, so every expectancy figure is gross. The
-  measured edge is smaller than realistic costs, which makes this the
-  blocking gap for any profitability question.
+- **No measured spread on a historical study.** The chart path reads per-bar
+  spread correctly, since MT5 hands `OnCalculate` a real spread array, but the
+  Strategy Tester exposes none. Obtaining a measured historical cost needs
+  live forward collection or exported tick data. Until then every cost figure
+  is an assumption, however clearly it is labelled.
+- Slippage and commission remain assumptions everywhere, because neither is
+  observable from a bar series by construction.
 - Timeframe breadth is M5 and H1 only. Nothing here says whether the rules do
   anything on a swing timeframe.
-- One broker's demo feed, one year (2014).
+- One broker's demo feed, one year.
 - The setups are tight: average bars-to-exit is under 3 for most types, and a
   large share of exits are ambiguous (both levels touched in one M5 bar).
-- One symbol, one timeframe, one year. Multi-instrument and multi-regime
-  validation remain open.
 - Indicator lifecycle (duplicate ticks, history reload) has no runtime test.
 - Multi-timeframe and session context are not implemented.
 - NinjaTrader has not been recompiled or brought to feature parity; its

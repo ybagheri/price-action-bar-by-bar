@@ -22,6 +22,7 @@
 
 #include "PAB_Types.mqh"
 #include "PAB_Utils.mqh"
+#include "TradingCost.mqh"
 #include "BarClassifier.mqh"
 #include "SwingDetector.mqh"
 #include "TradingRangeDetector.mqh"
@@ -810,6 +811,88 @@ void TestFailedBreakoutRequiresAnActualBreakout()
 
 
 //+------------------------------------------------------------------+
+//| Test 14: Execution costs convert cleanly into R (Phase 19)       |
+//|                                                                  |
+//| Everything measured before Phase 19 was gross. The measured     |
+//| edge was around +0.02R and realistic costs on EURUSD are a     |
+//| couple of tenths of an R, so the sign of the net figure was     |
+//| never established. These assertions pin the arithmetic that     |
+//| turns a broker spread plus an assumed slippage and commission   |
+//| into an R figure, because a silent error here does not produce  |
+//| a crash, it produces a plausible wrong number.                   |
+//+------------------------------------------------------------------+
+void TestTradingCost()
+  {
+   Print("--- TestTradingCost ---");
+
+   SCostModel free;
+   free.spreadPrice = 0.0;  free.spreadPoints = 0.0;  free.spreadMeasured = true;
+   free.slippagePrice = 0.0; free.slippagePoints = 0.0; free.commissionPrice = 0.0;
+   Check(MathAbs(CTradingCost::RoundTripCostPrice(free)) < 1e-12,
+         "A zero cost model costs nothing");
+   Check(CTradingCost::CostInR(free, 1.1000, 1.0980) == 0.0,
+         "A zero cost model is 0.0R at any stop distance");
+
+   // --- spread alone, on a 20-point stop -----------------------------
+   // 0.00020 spread over a 0.00200 stop is a tenth of an R. This is the
+   // single most important ratio in the file: it is why a +0.02R gross
+   // edge cannot survive contact with a real spread.
+   SCostModel spread;
+   spread.spreadPrice = 0.00020; spread.spreadPoints = 20.0; spread.spreadMeasured = true;
+   spread.slippagePrice = 0.0; spread.slippagePoints = 0.0; spread.commissionPrice = 0.0;
+   Check(MathAbs(CTradingCost::CostInR(spread, 1.1000, 1.0980) - 0.10) < 1e-9,
+         "A 0.00020 spread against a 0.00200 stop is 0.10R");
+
+   // The same spread against a much wider stop is proportionally cheaper.
+   Check(MathAbs(CTradingCost::CostInR(spread, 1.1000, 1.0900) - 0.02) < 1e-9,
+         "Cost in R falls when the stop distance widens, holding spread fixed");
+
+   // --- slippage is charged on BOTH sides -----------------------------
+   SCostModel slipped = spread;
+   slipped.slippagePrice = 0.00005;  // 5 points per side
+   slipped.slippagePoints = 5.0;
+   Check(MathAbs(CTradingCost::RoundTripCostPrice(slipped) - 0.00030) < 1e-12,
+         "A 0.00005 per-side slippage costs 0.00010 round trip on top of a 0.00020 spread");
+   Check(MathAbs(CTradingCost::CostInR(slipped, 1.1000, 1.0980) - 0.15) < 1e-9,
+         "Spread plus two-sided slippage is 0.15R against a 0.00200 stop");
+
+   // --- commission converts from currency to a price distance ---------
+   // A USD account on EURUSD: one 0.00001 point move is worth $1.00 per
+   // lot, so $7.00 round trip per lot is a 0.00007 price distance.
+   double commissionPrice = CTradingCost::CommissionPriceFromPerLot(7.0, 1.0, 1.0, 0.00001);
+   Check(MathAbs(commissionPrice - 0.00007) < 1e-12,
+         "A $7.00 per-lot round-trip commission is a 0.00007 price distance at $1/tick/lot");
+
+   // A larger position costs proportionally more of the same price move.
+   double commission10 = CTradingCost::CommissionPriceFromPerLot(7.0, 10.0, 1.0, 0.00001);
+   Check(MathAbs(commission10 - 0.000007) < 1e-12,
+         "Commission price distance scales inversely with lot size");
+
+   // Unavailable broker facts must not become a free or infinite cost.
+   Check(CTradingCost::CommissionPriceFromPerLot(7.0, 1.0, 0.0, 0.00001) == 0.0,
+         "An unavailable tick value yields 0.0 rather than a division by zero");
+   Check(CTradingCost::CommissionPriceFromPerLot(7.0, 0.0, 1.0, 0.00001) == 0.0,
+         "A zero lot size yields 0.0 rather than a division by zero");
+   Check(CTradingCost::CommissionPriceFromPerLot(0.0, 1.0, 1.0, 0.00001) == 0.0,
+         "A zero commission is 0.0 price distance");
+
+   // --- a NO TRADE row has no stop, so its cost in R is 0.0 ----------
+   Check(CTradingCost::CostInR(spread, 0.0, 0.0) == 0.0,
+         "A row with no levels yields 0.0R instead of dividing by zero");
+
+   // --- the label must disclose what was assumed ----------------------
+   SCostModel assumed = spread;
+   assumed.spreadMeasured = false;
+   Check(StringFind(assumed.Model(), "assumed") >= 0,
+         "A configured fallback spread is labelled as assumed, not measured");
+   Check(StringFind(spread.Model(), "assumed") < 0,
+         "A measured spread with no other assumption is not labelled as assumed");
+   Check(StringFind(slipped.Model(), "assumed") >= 0,
+         "An assumed slippage is labelled as assumed");
+  }
+
+
+//+------------------------------------------------------------------+
 //| Runs every group. Entry points call this and then report the    |
 //| counters; they must not run the groups individually, or a new    |
 //| group added here would silently never execute.                   |
@@ -834,5 +917,6 @@ void RunAllPabTests()
    TestContextAndDecision();
    TestTargetAndNoTradeContract();
    TestFailedBreakoutRequiresAnActualBreakout();
+   TestTradingCost();
   }
 

@@ -260,10 +260,10 @@ class FoldReportTests(unittest.TestCase):
         bars = make_bars(events)
         text = format_fold_report(split_walk_forward(events, bars, 4, min_resolved=1))
 
-        self.assertIn("expectancy degradation", text)
+        self.assertIn("gross expectancy degradation", text)
+        self.assertIn("net expectancy degradation", text)
         self.assertIn("reliable: yes", text)
         self.assertIn("not a profitability claim", text)
-        self.assertIn("Spread, slippage, and commission are not included", text)
 
     def test_report_flags_an_unreliable_result(self):
         events = [make_event(i) for i in range(8)]

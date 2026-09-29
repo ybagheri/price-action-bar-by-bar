@@ -5,8 +5,8 @@
 MQL5 compile with the installed MetaEditor:
 
 ```powershell
-$me   = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\MetaEditor64.exe"
-$data = "C:\Users\bagheri\AppData\Roaming\MetaQuotes\Terminal\0BCB0986AE04DC375BC47CA5AA358455"
+$me   = "C:\Program Files\Alpari MT5_3\MetaEditor64.exe"
+$data = "C:\Users\BazikadeStore\AppData\Roaming\MetaQuotes\Terminal\AB546F93664BD7249969F5973868F430"
 Copy-Item ".\MQL5\Include\PriceActionBarByBar\*" "$data\MQL5\Include\PriceActionBarByBar\" -Force
 Copy-Item ".\MQL5\Indicators\*" "$data\MQL5\Indicators\" -Force
 Copy-Item ".\MQL5\Scripts\*"    "$data\MQL5\Scripts\" -Force
@@ -45,24 +45,29 @@ the same reason, and `testpaths` in `pyproject.toml` means bare
 - MQL5 indicator compile: 0 errors, 0 warnings.
 - MQL5 harness compile: 0 errors, 0 warnings.
 - MQL5 export EA compile: 0 errors, 0 warnings.
-- MQL5 harness runtime, **headless**: 69 passed, 0 failed (Alpari MT5_3 build
+- MQL5 unit-test Script compile: 0 errors, 0 warnings.
+- MQL5 harness runtime, **headless**: 84 passed, 0 failed (Alpari MT5_3 build
   6230, 2026-09-29). Archived at
-  `research/test_artifacts/mql5_harness_20260929_headless.txt`.
-- Python tests: 77 passed, `pytest` and `unittest` agree.
+  `research/test_artifacts/mql5_harness_20260929_cost.txt`.
+- Python tests: 124 passed, `pytest` and `unittest` agree.
 - Python syntax compilation: passed.
-- Real headless historical export: 242,473 events across 4 markets and 2
-  timeframes, all seven combinations measured, 0 excluded for missing bars.
-  Archived at `research/test_artifacts/study_multi_market_2014.txt`.
+- Costed multi-market export: 319,650 events across 4 markets and 2
+  timeframes, all eight combinations measured, 0 excluded for missing bars,
+  with break-even and assumed-spread re-pricing. Archived at
+  `research/test_artifacts/study_costed_multi_market_2013.txt`.
 
-An earlier 54-assertion interactive run is kept at
-`research/test_artifacts/mql5_harness_20260929.txt`; it predates the move into
-`CPabEngine` and is superseded.
+Two earlier runs are kept for the record:
+`mql5_harness_20260929_headless.txt` (69/0, before the cost group) and
+`mql5_harness_20260929.txt` (54/0, the interactive run made before the
+pipeline moved into `CPabEngine`). Both are superseded.
 
 ## MQL5 harness coverage
 
-The synthetic script contains 12 groups covering bar classification, pullback numbering, swings,
-range/trend, patterns, normalized pattern slopes, breakout/climax, Always-In, measured move,
-duplicate processing, stale range clearing, context, setup composition, and NO TRADE.
+The suite contains 15 groups covering bar classification, pullback numbering,
+swings, range/trend, patterns, normalized pattern slopes, breakout/climax,
+Always-In, measured move, duplicate processing, stale range clearing, context,
+setup composition, the NO TRADE contract, the failed-breakout definition, and
+execution costs.
 
 ## Running the harness
 
@@ -79,9 +84,9 @@ There is deliberately only one copy of the assertions. Two copies drift, and a
 suite that only runs when someone remembers is not a regression suite.
 
 ```powershell
-$data = "C:\Users\bagheri\AppData\Roaming\MetaQuotes\Terminal\0BCB0986AE04DC375BC47CA5AA358455"
-$me   = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\MetaEditor64.exe"
-$term = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\terminal64.exe"
+$data = "C:\Users\BazikadeStore\AppData\Roaming\MetaQuotes\Terminal\AB546F93664BD7249969F5973868F430"
+$me   = "C:\Program Files\Alpari MT5_3\MetaEditor64.exe"
+$term = "C:\Program Files\Alpari MT5_3\terminal64.exe"
 
 Copy-Item ".\MQL5\Include\PriceActionBarByBar\*" "$data\MQL5\Include\PriceActionBarByBar\" -Force
 Copy-Item ".\MQL5\Experts\*" "$data\MQL5\Experts\" -Force
@@ -104,7 +109,7 @@ Visual=0
 "@ | Set-Content "$env:TEMP\harness.ini" -Encoding ASCII
 & $term "/config:$env:TEMP\harness.ini"
 
-Get-Content "$env:APPDATA\MetaQuotes\Tester\0BCB0986AE04DC375BC47CA5AA358455\Agent-127.0.0.1-3000\MQL5\Files\pab_harness.txt"
+Get-Content "$env:APPDATA\MetaQuotes\Tester\AB546F93664BD7249969F5973868F430\Agent-127.0.0.1-3000\MQL5\Files\pab_harness.txt"
 ```
 
 `pab_harness.txt` is rewritten on every run, never appended, so a stale PASS
@@ -126,9 +131,9 @@ open gap.
 research layer needs. It runs unattended from the MT5 Strategy Tester:
 
 ```powershell
-$me   = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\MetaEditor64.exe"
-$term = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\terminal64.exe"
-$data = "C:\Users\bagheri\AppData\Roaming\MetaQuotes\Terminal\0BCB0986AE04DC375BC47CA5AA358455"
+$me   = "C:\Program Files\Alpari MT5_3\MetaEditor64.exe"
+$term = "C:\Program Files\Alpari MT5_3\terminal64.exe"
+$data = "C:\Users\BazikadeStore\AppData\Roaming\MetaQuotes\Terminal\AB546F93664BD7249969F5973868F430"
 
 # 1. Copy sources into the terminal and compile inside Experts\ (the tester
 #    prepends Experts\ to the Expert= path and will not look in Indicators\).
@@ -159,7 +164,7 @@ Visual=0
 
 # 4. Collect. In the Strategy Tester, relative file paths resolve to the
 #    AGENT's data folder, not the terminal's.
-$agent = "$env:APPDATA\MetaQuotes\Tester\0BCB0986AE04DC375BC47CA5AA358455\Agent-127.0.0.1-3000\MQL5\Files"
+$agent = "$env:APPDATA\MetaQuotes\Tester\AB546F93664BD7249969F5973868F430\Agent-127.0.0.1-3000\MQL5\Files"
 Copy-Item "$agent\pab_events.csv","$agent\pab_bars.csv" <somewhere>\ -Force
 ```
 
@@ -192,11 +197,47 @@ than an error:
   reaches the write loop, so a timed-out run can leave the previous run's
   output in place. Delete the target files before each run and check the
   timestamps, not just the presence.
+- **The run takes minutes, not seconds, when history is not yet cached.** A
+  multi-symbol study is eight separate terminal launches, because the
+  tester's `Symbol` and `Period` are fixed at launch and running them in
+  parallel would have each launch forward its config to whichever instance
+  won the race. Observed per-run times were 13 s to 400 s depending on the
+  download. A run that appears hung is usually downloading.
+
+## The Strategy Tester has no historical spread
+
+This is the single most important limitation for anything cost-related, and it
+is a property of the platform rather than of this project.
+
+```
+PabEventExport: CopyBuffer copied -1 of 73752 spread values - error 4807
+PabEventExport: costs ASSUMED (iSpread unavailable)
+```
+
+`iSpread` returns a valid handle inside the tester, but `CopyBuffer` on it
+fails with error **4807** and yields no values. There is therefore no per-bar
+historical spread to read in a headless replay. The chart path is unaffected:
+`OnCalculate` receives a real `spread[]` array, so a live chart does measure
+per-bar spread correctly.
+
+Consequences, all of them deliberate:
+
+- The exporter writes **blank** cost fields, not `0.0`. A blank reads as "no
+  cost data"; a `0.0` would assert that trading was free, and would have
+  produced a "net" expectancy that was really the gross one.
+- The research report prints `n/a` for `costR` and `netR` and says GROSS in
+  those words.
+- `--break-even` and `--cost-scenario` exist because of this. Break-even
+  solves for the cost from the sample itself, so no cost guess enters it.
+
+To get a measured historical cost you need live forward collection, or tick
+data exported from the terminal. Neither is implemented.
 
 ## Required expansion
 
 - Add real indicator lifecycle tests for duplicate ticks and history reload.
   The harness does not reach OnCalculate or the renderer.
+- Obtain a measured spread on a historical study. See above.
 - Add shared MQL5/NT golden fixtures.
 - Add session and multi-timeframe tests when implemented.
 

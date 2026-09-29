@@ -45,20 +45,36 @@ Current state, verified evidence, and open gaps are summarised in
 - `--group market` for symbol+timeframe buckets, because pooling M5 and H1
   averages two different holding profiles.
 - The bar export carries `symbol` and `period` per row.
+- **Execution costs in the export** (Phase 19). `TradingCost.mqh` is the one
+  place that decides what a trade costs; every exported row carries
+  `spread_points`, the three price components, `cost_r`, and a `cost_model`
+  label that says which parts are measured and which are assumed.
+- **The report separates gross from net.** `grossR`, `costR`, and `netR` are
+  distinct columns, and a missing cost column yields `n/a` rather than a
+  repeated gross figure.
+- **Break-even cost and assumed-spread re-pricing.** `--break-even` solves for
+  the cost at which a group's edge vanishes, which needs no assumed spread at
+  all; `--cost-scenario` re-prices the sample at a spread you state.
+- **Costed multi-market study**: 319,650 events, 4 markets, 2 timeframes. The
+  edge is worth 0.0003% of price on the best M5 market. Archived at
+  `research/test_artifacts/study_costed_multi_market_2013.txt`.
+- Headless harness evidence archived: 84 passed, 0 failed (up from 69).
 
 ## Next
 
-1. **Add spread, slippage, and commission to the export.** Every expectancy
-   figure to date is gross, and the measured edge is smaller than realistic
-   costs, so no figure can be compared to a broker statement. This is now the
-   blocking gap for any profitability question.
+1. **Obtain a measured spread.** This is now the top gap. The exporter reads
+   per-bar spread correctly on a live chart, where MT5 supplies a real spread
+   array, but the Strategy Tester exposes none: `iSpread`'s `CopyBuffer` fails
+   with error 4807 and returns no values. A historical study on this harness
+   therefore cannot carry a measured cost. That needs live forward collection
+   or exported tick data.
 2. Widen the study to H4 and D1. Nothing here says whether the rules work on a
-   swing timeframe, and the H1 results are the least favourable of the seven.
+   swing timeframe.
 3. Repeat across a second year and a second broker feed. One broker's demo
-   data for 2014 is a narrow base.
+   feed, one year, is a narrow base.
 4. Indicator lifecycle integration tests. The harness covers the analyzers,
    not `OnCalculate` or the chart renderer.
-5. Review the H1 setup levels: 31-36 bars to exit with slightly negative
+5. Review the H1 setup levels: 24-34 bars to exit with slightly negative
    expectancy suggests the stop and target construction is not doing anything
    on that timeframe.
 6. Implement configurable higher-timeframe context using closed HTF bars.

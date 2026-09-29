@@ -25,8 +25,11 @@ Honest limits, stated up front
   That is intentional -- truncating outcomes would bias measured holding
   periods -- but it means fold boundaries leak forward in *outcome space*
   only, never in *decision space*.
-* Spread, slippage, and commission are absent from the export, so no figure
-  here includes them.
+* Costs are reported separately from expectancy, never folded silently into
+  it. An export written before Phase 19 has no cost column at all, in which
+  case the net figures read ``n/a`` and the gross figures are labelled as
+  gross. Reporting a gross number under a net heading would be worse than
+  reporting nothing.
 """
 
 from dataclasses import dataclass
@@ -74,10 +77,17 @@ class WalkForwardResult:
     win_rate_degradation: float
     reliable: bool
     reason: str
+    #: Net (after-cost) degradation. None when either pooled half lacks
+    #: cost data, so a gross degradation can never be read as a net one.
+    net_expectancy_degradation_r: float | None = None
 
     @property
     def folds_promised(self) -> int:
         return len(self.folds)
+
+    @property
+    def costs_available(self) -> bool:
+        return self.net_expectancy_degradation_r is not None
 
 
 def _block(events: Sequence[SetupEvent], start: int, stop: int) -> list[SetupEvent]:
@@ -163,6 +173,18 @@ def split_walk_forward(
     else:
         reliable, reason = True, ""
 
+    net_degradation = None
+    if pooled_in.net_expectancy_r is not None and pooled_out.net_expectancy_r is not None:
+        net_degradation = pooled_out.net_expectancy_r - pooled_in.net_expectancy_r
+    else:
+        # Cost data is missing on one side, which is a different problem
+        # from an unreliable sample. Report both, not one in place of the
+        # other.
+        reason = (
+            (reason + "; " if reason else "")
+            + "export carries no cost column, so net expectancy is unavailable"
+        )
+
     return WalkForwardResult(
         folds=tuple(produced),
         in_sample=pooled_in,
@@ -171,6 +193,7 @@ def split_walk_forward(
         win_rate_degradation=pooled_out.win_rate - pooled_in.win_rate,
         reliable=reliable,
         reason=reason,
+        net_expectancy_degradation_r=net_degradation,
     )
 
 
@@ -298,13 +321,19 @@ def format_fold_report(result: WalkForwardResult) -> str:
             }
         ),
         "",
-        f"expectancy degradation (OOS - IS): {result.expectancy_degradation_r:+.2f}R",
+        f"gross expectancy degradation (OOS - IS): {result.expectancy_degradation_r:+.2f}R",
+        (
+            f"net expectancy degradation   (OOS - IS): {result.net_expectancy_degradation_r:+.2f}R"
+            if result.net_expectancy_degradation_r is not None
+            else "net expectancy degradation   (OOS - IS): n/a -- the export carries no cost column"
+        ),
         f"win-rate degradation  (OOS - IS): {result.win_rate_degradation * 100:+.1f} pp",
         f"reliable: {'yes' if result.reliable else 'no -- ' + result.reason}",
     ]
     blocks.append(
         "Degradation is a measurement of this sample, not a profitability claim. "
         "Outcomes may resolve using bars past a fold boundary; decisions never do. "
-        "Spread, slippage, and commission are not included."
+        "netR includes the measured spread plus any assumed slippage and commission, "
+        "each labelled in the export's cost_model column."
     )
     return "\n".join(blocks)
