@@ -21,16 +21,30 @@ Current state, verified evidence, and open gaps are summarised in
 - Stable, normalized pattern slopes (fraction of price per bar, keyed off swing timestamps).
 - MQL5 runtime harness re-executed and archived (54 passed, 0 failed).
 - Inclusive `--from` / `--to` date windowing and per-fold date spans in the report.
+- `CPabEngine` holds the pipeline; the chart and the historical replay share it.
+- `MQL5/Experts/PabEventExport.mq5` replays real broker history headlessly and
+  writes both the event CSV and the bar CSV the research layer needs.
+- **First real event export measured** (EURUSD M5, Alpari-MT5-Demo, 2023-01-02 to
+  2023-12-29, 72,188 events), archived at
+  `research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+- Five defects that only a real export could expose are fixed: wrong-side
+  targets, over-triggered failed-breakout detection, NO TRADE rows carrying a
+  direction and levels, a loader that could not read MQL5's tab delimiter, and
+  a timestamp format `datetime.fromisoformat` rejects.
 
 ## Next
 
-1. Run the report against a real exported event file and archive the result.
-2. Point the walk-forward tooling at that real export across more than one instrument.
-3. Implement configurable higher-timeframe context using closed HTF bars.
-4. Add session/prior-day/overnight levels with broker-time assumptions.
-5. Apply the same timestamp-normalized slope to the NinjaTrader port and compile it.
-6. Add MQL5 indicator lifecycle integration tests.
-7. Automate the harness run so evidence does not depend on a human opening a chart.
+1. Re-run the MQL5 harness; the Phase 16 assertions are compiled but not yet executed.
+2. Repeat the real export on more symbols and timeframes, then re-run the
+   walk-forward per instrument. One symbol and one year is not a study.
+3. Add spread, slippage, and commission to the export so costs can be included
+   in the reported expectancy. Every figure so far is gross of costs.
+4. Review whether the setups are too tight to measure at M5: average
+   bars-to-exit is under 3 for most types, and one in five exits is ambiguous.
+5. Implement configurable higher-timeframe context using closed HTF bars.
+6. Add session/prior-day/overnight levels with broker-time assumptions.
+7. Apply the timestamp-normalized slope to the NinjaTrader port and compile it.
+8. Add MQL5 indicator lifecycle integration tests.
 
 ## Explicitly deferred
 

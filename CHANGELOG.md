@@ -32,16 +32,65 @@
 - `research/pyproject.toml` is now a working package definition: explicit
   package list, a `pab-research` console script, a `dev` extra carrying
   pytest, and pytest `testpaths`.
+- `CPabEngine`, which owns the whole analysis pipeline, plus `SEngineConfig`.
+  The chart indicator and the historical replay now build the same engine
+  with the same parameters instead of two implementations of one pipeline.
+- `MQL5/Experts/PabEventExport.mq5`: replays real broker history through that
+  engine and writes the event CSV *and* the `open_time`/`high`/`low` bar CSV the
+  research layer needs. Runnable headlessly from the MT5 Strategy Tester.
+- `BarSeries`, a precomputed time index, so outcome evaluation is a binary
+  search rather than a per-event sort.
+- `parse_timestamp` and `sniff_delimiter`, so the research layer can actually
+  read a real MQL5 export.
+- `TestTargetAndNoTradeContract` and `TestFailedBreakoutRequiresAnActualBreakout`
+  harness groups covering the Phase 16 fixes.
 
 ### Fixed
 
-- **The documented report entry point did not work.**
-  `python -m pab_research events.csv bars.csv`, advertised in README.md,
-  BACKTESTING.md, and HANDOFF.md, failed with `No module named
-  pab_research`. `research/pyproject.toml` declared a project but was never
-  a complete package definition and the package was never installed. It is
-  now installable with `python -m pip install -e .` from `research/`, and
-  verified to work from an unrelated working directory.
+Five defects that only became visible once a real export existed. None of them
+could have been found from the synthetic fixtures, because the fixtures did not
+look like the real file.
+
+- **`PATTERN_TRIANGLE` could never be produced.** The triangle branch compared
+  a raw price-per-bar-index slope against `InpConvergenceMin = 0.15`. On a 1.10
+  instrument that slope is about 0.0025, so the condition was unreachable.
+  Slopes are now a fraction of price per bar measured from swing timestamps,
+  and `InpConvergenceMin` defaults to 0.00020.
+- **A setup could be given a target on the wrong side of entry.** A
+  measured-move projection was adopted on direction alignment alone, with no
+  requirement that it lie beyond entry. Reward/risk then took an absolute
+  value, so an unreachable target scored a healthy R:R and a full room score.
+  Real export: 6,025 of 72,188 rows.
+- **The resistance clamp could land a target on top of entry.** A level a hair
+  above entry produced a target that exports as the same printed price as
+  entry, indistinguishable from no target at all. A target must now clear entry
+  by more than one point.
+- **A rejected setup leaked a direction and stale levels.** `status=no_trade`
+  rows were written with `direction=long` and non-zero entry/stop/target,
+  contradicting the export schema. All NO TRADE exits now route through one
+  `NoTrade()` helper that clears direction, type, and every price level.
+- **`failed_breakout` fired on 74 percent of all bars.** The test only asked
+  whether the current bar sat below the swing high, which is true for almost
+  every bar that has not broken out. It now requires the recent bars to have
+  traded beyond the level. Real export before the fix: 53,329 of 72,188
+  events; after: 12,654.
+- **The research layer could not read a real MQL5 export at all.**
+  `csv.DictReader` defaults to a comma delimiter while MQL5's `FILE_CSV`
+  defaults to a tab, so a whole tab-separated line was read as one field and
+  the loader raised `KeyError: event_id`. Every test passed because the
+  fixtures were written with Python's comma-defaulting writer.
+- **`datetime.fromisoformat` cannot parse MQL5's `TimeToString` output.** It
+  emits `2026.01.02 07:00:00` with a dot date separator, which is not
+  ISO-8601, so every event file exported before this change was unreadable.
+  New exports write real ISO-8601 via `IsoTimestamp()`, and `parse_timestamp`
+  accepts both spellings so existing files still load.
+- **`SETUP_TYPES` did not mirror `SetupTypeLabel()`.** It listed `"none"`, which
+  is a *direction*, and omitted `"no_trade"`, so every no-trade row in a real
+  export was rejected as an unknown setup type. A test now pins the set.
+- **The walk-forward report timed out on real data.** `evaluate_setup` sorted
+  the entire bar list once per event; 72,188 events against 72,175 bars is
+  roughly five billion operations. `BarSeries` builds the index once. The same
+  report now finishes in about 50 seconds.
 - MQL5 no-longer replays already processed bars on unchanged ticks.
 - Forming bar index 0 is no longer used for confirmed decisions.
 - ATR history is not copied on unchanged ticks.
@@ -68,21 +117,41 @@
 ### Validation
 
 - MQL5 indicator: 0 compile errors, 0 warnings (Alpari MT5_3 build 6230).
-- MQL5 harness: 0 compile errors, 0 warnings.
-- MQL5 harness runtime: 54 passed, 0 failed (Alpari MT5_3, EURUSD H1, 2026-09-29).
-  Archived at `research/test_artifacts/mql5_harness_20260929.txt`.
-- Python research suite: 57 tests passed; `pytest` and `unittest` agree.
+- MQL5 export EA: 0 compile errors, 0 warnings.
+- MQL5 harness: 0 compile errors, 0 warnings. **Runtime not yet re-executed**;
+  the 54-assertion run from 2026-09-29 predates the Phase 16 changes, and the
+  15 new Phase 16 assertions are compiled but unproven.
+- Python research suite: 67 tests passed; `pytest` and `unittest` agree.
 - Python `compileall`: passed.
-- Walk-forward and instrument CLI paths exercised end to end on a clearly
-  labelled **synthetic** export. No real event export has been analysed.
+- **Real export, headless, Alpari-MT5-Demo EURUSD M5, 2023-01-02 to
+  2023-12-29:** 72,189 bars replayed, 72,188 events written, 0 skipped, in
+  11 seconds. Grouped report, status report, and a 4-fold walk-forward all
+  produced. Archived at
+  `research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+
+### Measured result, stated plainly
+
+**The engine shows no measurable edge on this sample.** Resolved expectancy by
+setup type ranges from -0.06R to +0.04R; win rate ranges from 38.2 percent to
+55.4 percent. Walk-forward degradation is +0.01R and +0.9 percentage points,
+meaning the in-sample and out-of-sample halves performed the same, not that
+either was good.
+
+This is one symbol, one timeframe, one year, one parameter set, and it is
+gross of spread, slippage, and commission because the export does not carry
+them. Realistic costs would consume several times the measured per-trade edge.
+No profitability claim is made and none is supported.
 
 ### Known gaps
 
-- Reporting and walk-forward have never been run against a real exported
-  event file, so no measured win rate or expectancy figure exists yet.
-- Indicator lifecycle (duplicate ticks, history reload) has no runtime test yet.
-- No Strategy Tester run and no broker-spread modelling.
+- The MQL5 harness has not been re-executed since the pipeline moved into
+  CPabEngine, so the chart path is compile-verified but not runtime-verified.
+- Costs are absent from the export, so every expectancy figure is gross.
+- The setups are tight: average bars-to-exit is under 3 for most types, and a
+  large share of exits are ambiguous (both levels touched in one M5 bar).
+- One symbol, one timeframe, one year. Multi-instrument and multi-regime
+  validation remain open.
+- Indicator lifecycle (duplicate ticks, history reload) has no runtime test.
 - Multi-timeframe and session context are not implemented.
 - NinjaTrader has not been recompiled or brought to feature parity; its
   slope math is still dimensionally wrong.
-- Harness execution still requires a human to run the script on a chart.

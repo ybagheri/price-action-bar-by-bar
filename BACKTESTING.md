@@ -117,12 +117,43 @@ rows group under `unspecified` rather than being silently dropped.
 
 ## Current limitations
 
-The walk-forward and multi-instrument tooling exists and is tested on fixtures
-and on a clearly labelled synthetic CLI sample, but **it has never been run
-against a real event export**. No broad historical backtest, broker-spread
-simulation, walk-forward run, or multi-instrument study has been performed on
-real data, so no measured win rate or expectancy figure exists for this project
-yet. These tools establish the safe measurement contract; they do not
-demonstrate profitability.
+**The first real measurement exists, and it shows no edge.** EURUSD M5,
+Alpari-MT5-Demo, 2023-01-02 to 2023-12-29, 72,188 events. Resolved expectancy
+by setup type runs from -0.06R to +0.04R and win rate from 38.2 to 55.4
+percent. Walk-forward degradation is +0.01R and +0.9 percentage points, which
+means the in-sample and out-of-sample halves performed the same, not that
+either was good. Archived at
+`research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+
+That is one symbol, one timeframe, one year, one parameter set, and it is
+**gross of spread, slippage, and commission** because the export does not
+carry them. Realistic costs on EURUSD M5 would consume several times the
+measured per-trade edge, so the net result is worse than shown, not better. No
+profitability claim is made and none is supported.
+
+Two structural limits matter more than the headline numbers:
+
+- **The setups are too tight to measure at M5.** The stop is the signal bar's
+  own extreme plus 0.25 bar range, and the target is the nearest resistance or
+  support, so average bars-to-exit is 1.9 to 2.8 for every type except
+  `breakout_follow_through` at 10.8. One event in five resolves ambiguously
+  because both levels are touched inside the same M5 bar. A two-bar hold
+  cannot distinguish skill from noise.
+- **One symbol and one year is not a study.** Multi-instrument and multi-regime
+  validation remain open.
+
+## Producing an export
+
+Enable `InpExportEvents` on a chart for live forward events, or run
+`MQL5/Experts/PabEventExport.mq5` for a historical replay. The replay is the
+practical route: the chart's own export produces one event per bar of forward
+time, which is not a sample. See `TESTING.md` for the headless recipe and the
+list of traps that silently produce a wrong result rather than an error.
+
+The replay writes two files from one command:
+
+- `pab_events.csv` — the event schema the research layer validates.
+- `pab_bars.csv` — `open_time`/`high`/`low`, which `pab_research` cannot
+  derive and which the outcome evaluator needs.
 
 Avoid optimizing the score or thresholds on one dataset. Prefer broad, walk-forward, multi-regime validation and investigate suspiciously good results for leakage.

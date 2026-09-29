@@ -59,9 +59,12 @@ Verified in the current environment:
 
 - MQL5 indicator compilation: 0 errors, 0 warnings.
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
-- MQL5 regression harness runtime: 54 passed, 0 failed (Alpari MT5_3, EURUSD H1).
-- Python research tests: 57 passed.
+- MQL5 export EA compilation: 0 errors, 0 warnings.
+- MQL5 regression harness runtime: 54 passed, 0 failed at commit 831aeda, but
+  **not re-executed** since the pipeline moved into `CPabEngine`.
+- Python research tests: 67 passed.
 - Python `compileall`: passed.
+- Real headless historical export: 72,189 bars replayed, 72,188 events.
 
 No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 
@@ -70,6 +73,11 @@ No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 Set `InpExportEvents=true` to create a sandboxed CSV file. Every event records bar open/close, confirmation, decision time, levels, status, score, engine version, parameter fingerprint, symbol, and period.
 
 Python validates `confirmed_at <= decision_time` and evaluates target, invalidation, ambiguous same-bar exits, time to exit, MFE, and MAE. It can group the result by setup type, engine status, or symbol, and print win rate and expectancy in R:
+
+For a historical sample, `MQL5/Experts/PabEventExport.mq5` replays real broker
+history through the same engine the chart uses and writes both the event CSV
+and the bar CSV this tool needs. It runs unattended from the MT5 Strategy
+Tester; see `TESTING.md`.
 
 ```powershell
 python -m pab_research events.csv bars.csv --group setup
@@ -83,7 +91,22 @@ python -m pab_research events.csv bars.csv --walk-forward 4
 python -m pab_research events.csv bars.csv --walk-forward 4 --walk-forward-per-instrument
 ```
 
-The reporting and walk-forward tools are tested but have not yet been run against a real export, so this project publishes no measured win rate.
+### First real measurement, and it shows no edge
+
+EURUSD M5, Alpari-MT5-Demo, one full year of 2023, 72,188 events. Resolved
+expectancy by setup type runs from -0.06R to +0.04R; win rate from 38.2 to
+55.4 percent; walk-forward degradation +0.01R, meaning the two halves
+performed the same rather than either being good.
+
+These figures are **gross of spread, slippage, and commission**, which the
+export does not carry, and real costs would consume several times the
+measured per-trade edge. This is a measurement of the engine, not evidence
+that it works. Full output is archived at
+`research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+
+The setups also resolve too fast to be measurable at M5 — average 1.9 to 2.8
+bars to exit for most types, with about one in five exits touching both the
+target and the stop inside the same bar.
 
 ## Current limitations
 
