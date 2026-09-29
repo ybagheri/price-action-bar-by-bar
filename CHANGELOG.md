@@ -44,8 +44,25 @@
   read a real MQL5 export.
 - `TestTargetAndNoTradeContract` and `TestFailedBreakoutRequiresAnActualBreakout`
   harness groups covering the Phase 16 fixes.
+- `Include/PriceActionBarByBar/PabTests.mqh`: the regression suite as a shared
+  header, so `Scripts/PAB_UnitTests.mq5` (interactive) and
+  `Experts/PAB_HarnessEA.mq5` (headless) run the same assertions.
+- `Experts/PAB_HarnessEA.mq5`: runs the suite unattended in the Strategy
+  Tester and writes `pab_harness.txt` with the verdict, the engine version,
+  the MT5 build, and the names of any failing assertions. A test run no
+  longer depends on a human opening a chart, and the evidence is
+  machine-readable rather than scraped from a journal.
 
 ### Fixed
+
+A near-miss measured move rejected a whole setup. `mmUsable` required only
+`targetPrice > entry`, so a projection a fraction of a point beyond entry was
+adopted and then thrown out by the final one-point guard, turning a usable
+setup into NO TRADE. A too-close resistance clamp already fell back to the
+baseline target, so the two were inconsistent. A near-miss projection is now
+ignored and the baseline kept. This was found by the first headless harness
+run, not by reading the code, and it is the clearest argument for having made
+the suite runnable unattended.
 
 Five defects that only became visible once a real export existed. None of them
 could have been found from the synthetic fixtures, because the fixtures did not
@@ -118,9 +135,11 @@ look like the real file.
 
 - MQL5 indicator: 0 compile errors, 0 warnings (Alpari MT5_3 build 6230).
 - MQL5 export EA: 0 compile errors, 0 warnings.
-- MQL5 harness: 0 compile errors, 0 warnings. **Runtime not yet re-executed**;
-  the 54-assertion run from 2026-09-29 predates the Phase 16 changes, and the
-  15 new Phase 16 assertions are compiled but unproven.
+- MQL5 harness: 0 compile errors, 0 warnings.
+- MQL5 harness runtime, **headless in the Strategy Tester**: 69 passed, 0 failed
+  (Alpari MT5_3 build 6230, 2026-09-29, 0.16 s). Archived at
+  `research/test_artifacts/mql5_harness_20260929_headless.txt`. The first
+  headless run was 67/1 and exposed the near-miss measured-move defect above.
 - Python research suite: 67 tests passed; `pytest` and `unittest` agree.
 - Python `compileall`: passed.
 - **Real export, headless, Alpari-MT5-Demo EURUSD M5, 2023-01-02 to
@@ -144,8 +163,10 @@ No profitability claim is made and none is supported.
 
 ### Known gaps
 
-- The MQL5 harness has not been re-executed since the pipeline moved into
-  CPabEngine, so the chart path is compile-verified but not runtime-verified.
+- The harness covers the analyzer classes, not `CPabEngine`, `OnCalculate`, or
+  the chart renderer. Duplicate ticks and history reload remain untested, and
+  the chart path is compile-verified and replay-verified but not
+  lifecycle-verified.
 - Costs are absent from the export, so every expectancy figure is gross.
 - The setups are tight: average bars-to-exit is under 3 for most types, and a
   large share of exits are ambiguous (both levels touched in one M5 bar).

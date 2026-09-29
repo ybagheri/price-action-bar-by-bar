@@ -1,8 +1,8 @@
 # Handoff Summary - 2026-09-29
 
-State of the repository after Phase 16, which closed the largest outstanding
-gap: the measurement pipeline now runs end to end on real broker history, and
-the first real measurement says the engine has no edge.
+State of the repository after Phase 17. Both the measurement pipeline and the
+regression suite now run unattended, and the first real measurement says the
+engine has no edge.
 
 ## What this project is
 
@@ -22,15 +22,15 @@ be labelled separately.
 | MQL5 indicator compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 harness compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 export EA compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
-| MQL5 harness runtime | **not re-run since Phase 16** | last run 54/0 at 831aeda, before the refactor |
-| Real headless export | 72,189 bars, 72,188 events, 11 s | `research/test_artifacts/real_export_eurusd_m5_2023.txt` |
+| MQL5 harness runtime, **headless** | **69 passed, 0 failed** | `research/test_artifacts/mql5_harness_20260929_headless.txt` |
+| Real headless export | 72,189 bars, 72,188 events, 10 s | `research/test_artifacts/real_export_eurusd_m5_2023.txt` |
 | Python tests | 67 passed | `pytest` and `unittest` both agree |
 | Python `compileall` | clean | `research/` |
 
-**The harness is the one unproven thing.** The pipeline moved out of
-`OnCalculate` into `CPabEngine`, which the 54-assertion harness does not
-cover because the harness exercises analyzers directly, not the orchestrator.
-15 new assertions for the Phase 16 fixes are compiled but have never run.
+**What the harness does not cover.** It exercises the analyzer classes, not
+`CPabEngine`, not `OnCalculate`, and not the chart renderer. The chart path is
+compile-verified and replay-verified but not lifecycle-verified: duplicate
+ticks and history reload remain untested. That is the main remaining gap.
 
 ## The headline finding
 
@@ -57,7 +57,7 @@ exit in five touches both the target and the stop inside a single bar
 overfitting the walk-forward split exists to detect, and one symbol on one
 yearframe cannot support tuning.
 
-## What Phase 16 changed
+## What Phase 16 and 17 changed
 
 **One engine, two drivers.** `CPabEngine` owns the analyzer set and the
 per-bar pipeline. The chart calls `Evaluate()` once per `OnCalculate`; the
@@ -70,6 +70,14 @@ indexed by position and is only valid at the instant it was copied.
 Script and not the indicator, because MT5 only calls `OnCalculate` for files
 built as indicators; a file in `Experts\` runs through `OnInit`/`OnTick` and
 wrote a header with no rows. It places no orders.
+
+**A headless regression suite.** The assertions moved into
+`Include/PriceActionBarByBar/PabTests.mqh`, called by both
+`Scripts/PAB_UnitTests.mq5` (interactive) and `Experts/PAB_HarnessEA.mq5`
+(headless). There is one copy on purpose: two copies drift. The headless EA
+writes `pab_harness.txt` with the verdict, engine version, MT5 build, and the
+names of any failing assertions, rewritten every run so a stale PASS cannot
+be mistaken for the current one. It finishes in about 0.15 seconds.
 
 **Five defects that only a real export could expose.** None were findable from
 the synthetic fixtures, because the fixtures did not resemble the real file:
@@ -89,6 +97,13 @@ the synthetic fixtures, because the fixtures did not resemble the real file:
    `csv.DictReader` defaults to comma while `FILE_CSV` defaults to tab, and
    `datetime.fromisoformat` rejects MQL5's dotted `TimeToString` output. Every
    test passed because the fixtures were written with Python's comma default.
+
+**A sixth defect, found by the first headless harness run** rather than by
+reading: `mmUsable` required only `targetPrice > entry`, so a measured move a
+fraction of a point beyond entry was adopted and then rejected by the
+one-point guard, turning a usable setup into NO TRADE. A too-close resistance
+clamp already fell back to the baseline, so the two were inconsistent. This is
+the clearest argument for having made the suite runnable unattended.
 
 Plus a performance defect only real volumes expose: `evaluate_setup` sorted
 the whole bar list per event, roughly five billion operations. `BarSeries`
@@ -118,36 +133,35 @@ A test now pins the set.
 
 ## Honest gaps
 
-- **The harness has not been re-run since the refactor.** Compile-verified
-  only. This is the single most important thing to fix next.
+- **The harness does not reach the chart lifecycle.** It covers the analyzers,
+  not `CPabEngine`, `OnCalculate`, or the renderer. Duplicate ticks and
+  history reload are unproven.
 - Costs are absent from the export; every expectancy figure is gross.
 - The setups resolve too fast to measure at M5.
 - One symbol, one timeframe, one year. Multi-instrument and multi-regime
   validation are open.
-- Indicator lifecycle (duplicate ticks, history reload) has no runtime test.
 - Higher-timeframe and session context are not implemented; single timeframe.
 - NinjaTrader is never compiled, is not at parity, and its slope math still
   hardcodes adjacent x coordinates.
-- Tester inputs cannot be set from the command line, so the replay's date
-  range is compiled-in. Empty means "all available history".
+- Tester inputs cannot be set from the command line, so a replay's date range
+  is compiled-in. Empty means "all available history".
 
 ## Next steps
 
 `ROADMAP.md` holds the authoritative list. In order:
 
-1. **Re-run the MQL5 harness.** 15 new assertions cover the Phase 16 fixes
-   and none have been executed. Open a chart on MT5_3 and run `PAB_UnitTests`.
-2. Repeat the real export on more symbols and timeframes, then re-run the
-   walk-forward per instrument.
-3. Add spread, slippage, and commission to the export so expectancy can be
+1. Repeat the real export on more symbols and timeframes, then re-run the
+   walk-forward per instrument. One symbol and one year is not a study.
+2. Add spread, slippage, and commission to the export so expectancy can be
    reported net. Until then no figure is comparable to a broker statement.
-4. Decide whether the setups should be widened. At under three bars to exit
+3. Decide whether the setups should be widened. At under three bars to exit
    the M5 measurement is not informative, and that is a design question
    rather than a parameter tweak.
+4. Indicator lifecycle integration tests, so `OnCalculate` and the renderer
+   have runtime evidence rather than compile evidence.
 5. Higher-timeframe context using closed HTF bars.
 6. Session/prior-day/overnight levels with broker-time assumptions.
 7. NinjaTrader: apply the normalized slope and compile it.
-8. Indicator lifecycle integration tests.
 
 ## Environment notes
 

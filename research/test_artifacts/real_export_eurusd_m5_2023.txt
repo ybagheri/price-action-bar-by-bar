@@ -1,27 +1,28 @@
 ﻿PriceActionBarByBar - real export, Alpari MT5_3 build 6230
 Source : EURUSD,M5 Alpari-MT5-Demo, 2023-01-02 07:00 .. 2023-12-29 22:50 (72189 bars)
-Engine : 1.50 via Experts\PabEventExport.ex5, Strategy Tester, headless
+Engine : PAB_ENGINE_VERSION 1.50 via Experts\PabEventExport.ex5, Strategy Tester, headless
+Harness: 69 passed, 0 failed, same engine build, same session
 Cost model: NONE. Spread, slippage and commission are not included anywhere.
 
 72188 events, 72175 bars, grouped by setup
 group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
 --------------------------------------------------------------------------------------------------------
-breakout_follow_through    2178  1112  1051    15      0      0   51.1%   -0.06    0.04%   -0.04%   10.8
-failed_breakout           12654  7003  5163   486      2      0   55.4%    0.00    0.02%   -0.02%    2.4
-no_trade                  40414     0     0     0      0  40414    0.0%    0.00    0.00%    0.00%    0.0
-second_entry               5646  2859  2506   279      2      0   50.7%    0.04    0.02%   -0.02%    1.9
-trend_pullback            11296  4310  6486   498      2      0   38.2%    0.02    0.03%   -0.02%    2.8
+breakout_follow_through    2187  1113  1059    15      0      0   50.9%   -0.06    0.04%   -0.04%   10.8
+failed_breakout           12670  7012  5173   483      2      0   55.4%    0.00    0.02%   -0.02%    2.4
+no_trade                  40358     0     0     0      0  40358    0.0%    0.00    0.00%    0.00%    0.0
+second_entry               5649  2862  2506   279      2      0   50.7%    0.04    0.02%   -0.02%    1.9
+trend_pullback            11324  4319  6508   495      2      0   38.1%    0.03    0.03%   -0.02%    2.8
 
 win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
 
 72188 events, 72175 bars, grouped by status
 group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
 --------------------------------------------------------------------------------------------------------
-confirmed                   445   134   309     2      0      0   30.1%   -0.12    0.06%   -0.05%   20.6
-no_trade                  40414     0     0     0      0  40414    0.0%    0.00    0.00%    0.00%    0.0
-possible                   3186   854  2278    53      1      0   26.8%    0.01    0.03%   -0.03%    4.3
-probable                   1678   454  1204    20      0      0   27.1%    0.00    0.04%   -0.03%    9.9
-weak                      26465 13842 11415  1203      5      0   52.3%    0.02    0.02%   -0.02%    2.1
+confirmed                   448   135   311     2      0      0   30.1%   -0.12    0.06%   -0.06%   20.5
+no_trade                  40358     0     0     0      0  40358    0.0%    0.00    0.00%    0.00%    0.0
+possible                   3201   857  2290    53      1      0   26.8%    0.01    0.03%   -0.03%    4.3
+probable                   1685   458  1207    20      0      0   27.2%    0.00    0.04%   -0.03%    9.9
+weak                      26496 13856 11438  1197      5      0   52.3%    0.02    0.02%   -0.02%    2.2
 
 win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
 
@@ -30,10 +31,10 @@ walk-forward per-fold results
 Setup outcome report
 group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
 --------------------------------------------------------------------------------------------------------
-fold0-in_sample           18047  3880  3870   331      0   9966   48.0%   -0.01    0.03%   -0.03%    3.2
-fold1-out_of_sample       18047  3822  3735   330      0  10160   48.5%    0.04    0.02%   -0.02%    2.7
-fold2-in_sample           18047  3716  3837   302      0  10192   47.3%    0.02    0.02%   -0.02%    3.2
-fold3-out_of_sample       18047  3866  3764   315      6  10096   48.7%    0.00    0.02%   -0.02%    3.0
+fold0-in_sample           18047  3884  3882   330      0   9951   48.0%   -0.01    0.03%   -0.03%    3.2
+fold1-out_of_sample       18047  3827  3741   329      0  10150   48.5%    0.04    0.02%   -0.02%    2.7
+fold2-in_sample           18047  3727  3848   301      0  10171   47.3%    0.03    0.02%   -0.02%    3.2
+fold3-out_of_sample       18047  3868  3775   312      6  10086   48.6%    0.00    0.02%   -0.02%    3.0
 
 win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
 
@@ -47,8 +48,8 @@ pooled comparison
 Setup outcome report
 group                     total   tgt   inv   amb    exp     nt    win%    expR      MFE      MAE   bars
 --------------------------------------------------------------------------------------------------------
-in_sample (pooled)        36094  7596  7707   633      0  20158   47.7%    0.00    0.03%   -0.03%    3.2
-out_of_sample (pooled)    36094  7688  7499   645      6  20256   48.6%    0.02    0.02%   -0.02%    2.9
+in_sample (pooled)        36094  7611  7730   631      0  20122   47.7%    0.01    0.03%   -0.03%    3.2
+out_of_sample (pooled)    36094  7695  7516   641      6  20236   48.5%    0.02    0.02%   -0.02%    2.9
 
 win% and expR cover resolved outcomes only; expired and NO TRADE rows are excluded. MFE/MAE are price excursions, not realised P/L. Spread, slippage, and commission are not included.
 
@@ -63,9 +64,9 @@ Degradation is a measurement of this sample, not a profitability claim. Outcomes
 ====================================================
 The engine has NO measurable edge on this sample. Every resolved expectancy
 sits between -0.06R and +0.04R, and win rates sit between 38 percent and
-55 percent. Walk-forward degradation is +0.01R and +0.9 percentage points,
-which means the in-sample and out-of-sample halves performed the same, not
-that either was good.
+55 percent. Walk-forward degradation is near zero, which means the
+in-sample and out-of-sample halves performed the same, NOT that either was
+good.
 
 These are descriptive counts of one symbol, one timeframe, one year, and one
 parameter set. They are NOT a profitability claim and must not be read as
@@ -80,8 +81,8 @@ Two structural observations that matter more than the numbers above:
    every setup type except breakout_follow_through at 10.8. The stop is
    the signal bar's own extreme plus 0.25 bar range, and the target is the
    nearest resistance or support. An event that resolves within two bars
-   cannot distinguish skill from noise, and the ambiguous counts (486 of
-   12,654 for failed_breakout) show how often both levels are touched in
+   cannot distinguish skill from noise, and the ambiguous counts (483 of
+   12,670 for failed_breakout) show how often both levels are touched in
    the same bar, which is unresolvable at M5.
 
 2. One year of a single symbol on a single timeframe is not a study. The
@@ -92,4 +93,5 @@ Two structural observations that matter more than the numbers above:
 What this run DOES establish: the export, the loader, the outcome
 evaluator, the grouping, and the walk-forward split now run end to end on
 real broker history, and every figure above is reproducible from the two
-CSVs with one command.
+CSVs with one command. The regression suite passes on the same engine
+build (69 passed, 0 failed).

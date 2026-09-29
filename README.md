@@ -60,8 +60,9 @@ Verified in the current environment:
 - MQL5 indicator compilation: 0 errors, 0 warnings.
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
 - MQL5 export EA compilation: 0 errors, 0 warnings.
-- MQL5 regression harness runtime: 54 passed, 0 failed at commit 831aeda, but
-  **not re-executed** since the pipeline moved into `CPabEngine`.
+- MQL5 regression harness runtime, headless in the Strategy Tester:
+  69 passed, 0 failed. A run no longer needs a human; it writes a
+  machine-readable verdict.
 - Python research tests: 67 passed.
 - Python `compileall`: passed.
 - Real headless historical export: 72,189 bars replayed, 72,188 events.

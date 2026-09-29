@@ -31,20 +31,25 @@ Current state, verified evidence, and open gaps are summarised in
   targets, over-triggered failed-breakout detection, NO TRADE rows carrying a
   direction and levels, a loader that could not read MQL5's tab delimiter, and
   a timestamp format `datetime.fromisoformat` rejects.
+- The regression harness runs **headlessly** from the Strategy Tester and
+  writes a machine-readable verdict. One copy of the assertions, shared by the
+  interactive Script and the headless EA.
+- Headless harness evidence archived: 69 passed, 0 failed.
 
 ## Next
 
-1. Re-run the MQL5 harness; the Phase 16 assertions are compiled but not yet executed.
-2. Repeat the real export on more symbols and timeframes, then re-run the
+1. Repeat the real export on more symbols and timeframes, then re-run the
    walk-forward per instrument. One symbol and one year is not a study.
-3. Add spread, slippage, and commission to the export so costs can be included
+2. Add spread, slippage, and commission to the export so costs can be included
    in the reported expectancy. Every figure so far is gross of costs.
-4. Review whether the setups are too tight to measure at M5: average
+3. Review whether the setups are too tight to measure at M5: average
    bars-to-exit is under 3 for most types, and one in five exits is ambiguous.
+4. Add MQL5 indicator lifecycle integration tests. The harness covers the
+   analyzers, not `OnCalculate` or the chart renderer, so duplicate ticks and
+   history reload are still unproven.
 5. Implement configurable higher-timeframe context using closed HTF bars.
 6. Add session/prior-day/overnight levels with broker-time assumptions.
 7. Apply the timestamp-normalized slope to the NinjaTrader port and compile it.
-8. Add MQL5 indicator lifecycle integration tests.
 
 ## Explicitly deferred
 

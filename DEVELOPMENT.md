@@ -31,9 +31,28 @@ the implicit current directory. See `TESTING.md`.
 5. Keep score components transparent and capped.
 6. Add deterministic tests before parameter tuning.
 7. Compile every changed MQL5 target with MetaEditor.
-8. Run Python tests when research code changes.
+8. Run the MQL5 regression suite headlessly, and the Python suite, whenever
+   the relevant code changes. Both are unattended now; see `TESTING.md`.
 9. Inspect `git status`, `git diff`, and recent log before each commit.
 10. Commit and push coherent phases separately.
+
+## Evidence discipline
+
+The project's rule is that no assertion passes without a runtime log. Phase 17
+made that cheap enough to actually honour: the suite runs in about 0.15
+seconds from the command line and writes a verdict file.
+
+Two habits proved their worth immediately, and both are worth keeping:
+
+- **Re-run the suite after every behavioural change, not just at the end.**
+  Making it automated found a real engine defect on its very first unattended
+  run — a near-miss measured move that rejected a whole setup — which no amount
+  of reading had caught.
+- **Exercise the real input, not a fixture shaped like it.** Every defect found
+  in Phase 16 was invisible to the synthetic fixtures because the fixtures
+  used a comma delimiter and ISO timestamps while MQL5 emits tabs and dots.
+  A green suite over a fixture that does not resemble production data is worse
+  than no suite, because it is trusted.
 
 ## Analyzer contracts
 
@@ -49,13 +68,14 @@ Python must not independently redefine MT5 setups. It validates and measures exp
 
 ## Current technical debt
 
-- Indicator lifecycle runtime tests (duplicate ticks, history reload).
+- Indicator lifecycle runtime tests (duplicate ticks, history reload). The
+  harness exercises the analyzers, not `OnCalculate` or the renderer.
 - Higher-timeframe and session context.
-- A real event export to point the reporting and walk-forward tooling at.
+- Costs in the export: spread, slippage, and commission, so expectancy can be
+  reported net rather than gross.
+- A broader real study: one symbol, one timeframe, one year so far.
 - NinjaTrader compilation/parity fixtures; its slope math still hardcodes
   adjacent x coordinates and is dimensionally wrong.
-- The harness run still depends on a human opening a chart and reading the
-  journal, so evidence is slow to regenerate.
 
 ## Measurement conventions
 

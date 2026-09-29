@@ -1,0 +1,49 @@
+MQL5 regression harness, executed HEADLESSLY in the MT5 Strategy Tester.
+
+This is the first run of the suite that did not require a human to open a
+chart. The assertions live in Include/PriceActionBarByBar/PabTests.mqh and
+are shared verbatim by Scripts/PAB_UnitTests.mq5 (interactive, run from the
+Navigator) and Experts/PAB_HarnessEA.mq5 (headless, run from the terminal
+command line). Two copies of a suite drift; a suite that only runs when
+someone remembers is not a regression suite.
+
+Run at   : 2026-09-29 11:45:12
+Terminal: Alpari MT5_3 build 6230
+Expert  : Experts\PAB_HarnessEA.ex5
+Symbol  : EURUSD,M5, 2026.06.01 to 2026.06.05
+          (the suite is symbol-independent; it runs on synthetic fixtures)
+Duration: 0.159 s
+
+VERDICT: PASS - 69 passed, 0 failed
+
+--- pab_harness.txt (verbatim) ---
+engine_version 1.50
+build 6230
+symbol EURUSD
+result 69 0
+verdict PASS
+--- end summary ---
+
+Coverage: 14 groups covering bar classification, pullback numbering, swing
+detection, range/trend state, pattern detection, normalized pattern slopes,
+breakout and climax, Always-In, measured move, idempotent updates, stale
+range clearing, context and decision composition, the target and NO TRADE
+contract, and the failed-breakout definition.
+
+Scope limit, stated so it is not over-read: these are unit tests over the
+analyzer classes. They do NOT cover CPabEngine, the indicator's OnCalculate,
+the chart renderer, or the event export. Those are covered only by the
+historical replay, which exercises the engine but not the chart lifecycle.
+
+The FIRST headless run reported 67 passed, 1 failed, and that failure was a
+real engine defect rather than a bad fixture. mmUsable required only
+targetPrice > entry, so a measured-move projection a fraction of a point
+beyond entry was adopted and then rejected by the final one-point guard,
+turning a usable setup into NO TRADE. A near-miss projection should be
+ignored and the baseline target kept, exactly as a too-close resistance clamp
+already was. Fixed in DecisionEngine.mqh; the assertion now pins the correct
+behaviour, that the setup survives and the baseline target is used.
+
+This supersedes research/test_artifacts/mql5_harness_20260929.txt, which
+records the 54-assertion interactive run made before the pipeline moved into
+CPabEngine. That file is kept for the record.

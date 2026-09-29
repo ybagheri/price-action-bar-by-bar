@@ -166,11 +166,17 @@ public:
       double target = longTrade ? candidate.entryPrice + 2.0 * bar.range
                                 : candidate.entryPrice - 2.0 * bar.range;
 
+      // A measured move needs the same one-point separation as the clamps.
+      // Requiring only targetPrice > entry let a projection a fraction of a
+      // point beyond entry be adopted, at which point the final guard below
+      // rejected the whole setup as NO TRADE. A near-miss projection should
+      // be IGNORED and the baseline kept, exactly as a too-close resistance
+      // clamp is, not convert a usable setup into a rejection.
       bool mmUsable = measuredMove.active &&
                       ((longTrade && measuredMove.isBullish) ||
                        (!longTrade && !measuredMove.isBullish)) &&
-                      (longTrade ? measuredMove.targetPrice > candidate.entryPrice
-                                 : measuredMove.targetPrice < candidate.entryPrice);
+                      (longTrade ? measuredMove.targetPrice > candidate.entryPrice + _Point
+                                 : measuredMove.targetPrice < candidate.entryPrice - _Point);
 
       if(mmUsable)
          target = measuredMove.targetPrice;

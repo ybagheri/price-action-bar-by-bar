@@ -44,10 +44,18 @@ the same reason, and `testpaths` in `pyproject.toml` means bare
 
 - MQL5 indicator compile: 0 errors, 0 warnings.
 - MQL5 harness compile: 0 errors, 0 warnings.
-- MQL5 harness runtime: 54 passed, 0 failed (Alpari MT5_3 build 6230, EURUSD H1, 2026-09-29).
-  Archived at `research/test_artifacts/mql5_harness_20260929.txt`.
-- Python tests: 57 passed, `pytest` and `unittest` agree.
+- MQL5 export EA compile: 0 errors, 0 warnings.
+- MQL5 harness runtime, **headless**: 69 passed, 0 failed (Alpari MT5_3 build
+  6230, 2026-09-29). Archived at
+  `research/test_artifacts/mql5_harness_20260929_headless.txt`.
+- Python tests: 67 passed, `pytest` and `unittest` agree.
 - Python syntax compilation: passed.
+- Real headless historical export: 72,189 bars replayed, 72,188 events.
+  Archived at `research/test_artifacts/real_export_eurusd_m5_2023.txt`.
+
+An earlier 54-assertion interactive run is kept at
+`research/test_artifacts/mql5_harness_20260929.txt`; it predates the move into
+`CPabEngine` and is superseded.
 
 ## MQL5 harness coverage
 
@@ -57,10 +65,58 @@ duplicate processing, stale range clearing, context, setup composition, and NO T
 
 ## Running the harness
 
-The harness is a Script, not an indicator, so it is launched by hand: open any chart, then run
-`PAB_UnitTests` from Navigator > Scripts. Results go to the Experts journal. A startup config
-(`/config:`) is not sufficient — if a terminal instance is already running, the config is
-forwarded to it and ignored, so the terminal must be closed first.
+The suite lives in `Include/PriceActionBarByBar/PabTests.mqh` and has two
+entry points that call the same `RunAllPabTests()`:
+
+- **Headless (preferred for evidence).** `Experts/PAB_HarnessEA.mq5` runs it
+  in the Strategy Tester from the command line and writes a machine-readable
+  `pab_harness.txt`. Takes about 0.15 seconds and needs nobody present.
+- **Interactive.** `Scripts/PAB_UnitTests.mq5` runs from Navigator > Scripts
+  on any chart, with output in the Experts journal.
+
+There is deliberately only one copy of the assertions. Two copies drift, and a
+suite that only runs when someone remembers is not a regression suite.
+
+```powershell
+$data = "C:\Users\bagheri\AppData\Roaming\MetaQuotes\Terminal\0BCB0986AE04DC375BC47CA5AA358455"
+$me   = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\MetaEditor64.exe"
+$term = "C:\Users\bagheri\AppData\Roaming\Alpari MT5_3\terminal64.exe"
+
+Copy-Item ".\MQL5\Include\PriceActionBarByBar\*" "$data\MQL5\Include\PriceActionBarByBar\" -Force
+Copy-Item ".\MQL5\Experts\*" "$data\MQL5\Experts\" -Force
+& $me "/compile:$data\MQL5\Experts\PAB_HarnessEA.mq5" "/log:$env:TEMP\harness.log"
+
+# Same .set trap as the export below: delete it or stale inputs are reused.
+Remove-Item "$data\MQL5\Profiles\Tester\PAB_HarnessEA.set" -Force -ErrorAction SilentlyContinue
+
+@"
+[Tester]
+Expert=PAB_HarnessEA.ex5
+Symbol=EURUSD
+Period=M5
+FromDate=2026.06.01
+ToDate=2026.06.05
+ShutdownTerminal=1
+Deposit=10000
+Optimization=0
+Visual=0
+"@ | Set-Content "$env:TEMP\harness.ini" -Encoding ASCII
+& $term "/config:$env:TEMP\harness.ini"
+
+Get-Content "$env:APPDATA\MetaQuotes\Tester\0BCB0986AE04DC375BC47CA5AA358455\Agent-127.0.0.1-3000\MQL5\Files\pab_harness.txt"
+```
+
+`pab_harness.txt` is rewritten on every run, never appended, so a stale PASS
+cannot be mistaken for the current one. It carries the engine version and the
+MT5 build, so an archived result says what produced it.
+
+## Scope of the harness
+
+Unit tests over the analyzer classes. They do **not** cover `CPabEngine`, the
+indicator's `OnCalculate`, the chart renderer, or the event export. Those are
+exercised only by the historical replay below, which covers the engine but not
+the chart lifecycle. Chart lifecycle has no runtime test at all; that is an
+open gap.
 
 ## Headless historical export
 
@@ -129,9 +185,8 @@ than an error:
 
 ## Required expansion
 
-- Re-run the harness after the Phase 16 engine refactor; the new assertions
-  are compiled but unproven.
 - Add real indicator lifecycle tests for duplicate ticks and history reload.
+  The harness does not reach OnCalculate or the renderer.
 - Add shared MQL5/NT golden fixtures.
 - Add session and multi-timeframe tests when implemented.
 
