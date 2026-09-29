@@ -60,7 +60,7 @@ Verified in the current environment:
 - MQL5 indicator compilation: 0 errors, 0 warnings.
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
 - MQL5 regression harness runtime: 54 passed, 0 failed (Alpari MT5_3, EURUSD H1).
-- Python research tests: 46 passed.
+- Python research tests: 57 passed.
 - Python `compileall`: passed.
 
 No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
@@ -73,9 +73,10 @@ Python validates `confirmed_at <= decision_time` and evaluates target, invalidat
 
 ```powershell
 python -m pab_research events.csv bars.csv --group setup
+python -m pab_research events.csv bars.csv --from 2025-01-01T00:00:00 --to 2025-12-31T00:00:00
 ```
 
-For a chronological in-sample / out-of-sample split with a reported degradation gap:
+For a chronological in-sample / out-of-sample split with a reported degradation gap and each fold's date span:
 
 ```powershell
 python -m pab_research events.csv bars.csv --walk-forward 4

@@ -211,13 +211,44 @@ def instrument_walk_forward(
     return results
 
 
+def filter_window(
+    events: Sequence[SetupEvent],
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[SetupEvent]:
+    """Keep only events whose ``decision_time`` falls in ``[start, end]``.
+
+    Both bounds are inclusive, and ``None`` means unbounded. Filtering is on
+    ``decision_time`` rather than ``bar_open_time`` because that is the instant
+    the engine actually committed, and it is the field the walk-forward split
+    cuts on, so a filter and a fold can never disagree about which side of a
+    boundary an event falls on.
+    """
+    if start is not None and end is not None and start > end:
+        raise ValueError("start must not be later than end")
+    kept = [
+        event
+        for event in events
+        if (start is None or event.decision_time >= start)
+        and (end is None or event.decision_time <= end)
+    ]
+    kept.sort(key=lambda event: event.decision_time)
+    return kept
+
+
 def format_fold_report(result: WalkForwardResult) -> str:
     """Render a walk-forward result as a fixed-width text block."""
     from .report import format_report
 
+    spans = "\n".join(
+        f"  {fold.stats.key:<28}{fold.span_label}" for fold in result.folds
+    )
     blocks = [
         "walk-forward per-fold results",
         format_report({fold.stats.key: fold.stats for fold in result.folds}),
+        "",
+        "decision-time span per fold",
+        spans,
         "",
         "pooled comparison",
         format_report(

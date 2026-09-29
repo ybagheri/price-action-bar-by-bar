@@ -20,6 +20,7 @@ Current state, verified evidence, and open gaps are summarised in
 - `symbol` and `period` added to the event export so multi-instrument runs are possible.
 - Stable, normalized pattern slopes (fraction of price per bar, keyed off swing timestamps).
 - MQL5 runtime harness re-executed and archived (54 passed, 0 failed).
+- Inclusive `--from` / `--to` date windowing and per-fold date spans in the report.
 
 ## Next
 

@@ -38,7 +38,15 @@ The indicator does not export bars. Export the same symbol and timeframe from MT
 python -m pab_research events.csv bars.csv
 python -m pab_research events.csv bars.csv --group status
 python -m pab_research events.csv bars.csv --group instrument
+python -m pab_research events.csv bars.csv --from 2025-01-01T00:00:00 --to 2025-12-31T00:00:00
 ```
+
+`--from` and `--to` are inclusive ISO timestamps. Filtering is on
+`decision_time`, not `bar_open_time`, because that is the instant the engine
+committed and the field the walk-forward split cuts on — so a window and a
+fold can never disagree about which side of a boundary an event is on. A
+window containing no events reports that and exits non-zero rather than
+printing an empty table. An inverted window is rejected outright.
 
 ## Aggregate reporting
 
@@ -70,9 +78,11 @@ python -m pab_research events.csv bars.csv --walk-forward 4 --walk-forward-per-i
   non-overlapping blocks at even fractions of the event count.
 - Even-numbered blocks are in-sample, odd-numbered are out-of-sample, so every
   out-of-sample block is preceded by an in-sample block of the same length.
-- The report prints each fold, then the pooled in-sample and out-of-sample
-  comparison, then the degradation gap (`OOS - IS`) in expectancy (R) and win
-  rate (percentage points).
+- The report prints each fold, then the decision-time span of each fold, then
+  the pooled in-sample and out-of-sample comparison, then the degradation gap
+  (`OOS - IS`) in expectancy (R) and win rate (percentage points). The spans
+  are what make a multi-year result interpretable, so read them before
+  comparing figures from two different exports.
 - A result resolving fewer than `--walk-forward-min-resolved` outcomes (default
   5) is reported with `reliable: no` and the reason, rather than publishing an
   expectancy off a handful of trades.

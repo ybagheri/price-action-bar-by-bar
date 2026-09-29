@@ -8,6 +8,7 @@ slippage, and commission because the export does not carry them.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Sequence
 
 from .events import PriceBar, SetupEvent
@@ -212,6 +213,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="run the walk-forward split separately for each symbol",
     )
+    parser.add_argument(
+        "--from",
+        dest="from_iso",
+        metavar="TIMESTAMP",
+        help="only count events decided at or after this ISO timestamp",
+    )
+    parser.add_argument(
+        "--to",
+        dest="to_iso",
+        metavar="TIMESTAMP",
+        help="only count events decided at or before this ISO timestamp",
+    )
     args = parser.parse_args(argv)
 
     events = load_setup_events(args.events_csv)
@@ -219,6 +232,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not events:
         print("no events found")
         return 1
+
+    start = datetime.fromisoformat(args.from_iso) if args.from_iso else None
+    end = datetime.fromisoformat(args.to_iso) if args.to_iso else None
+    if start is not None or end is not None:
+        from .validation import filter_window
+
+        try:
+            events = filter_window(events, start, end)
+        except ValueError as error:
+            print(f"invalid window: {error}")
+            return 1
+        if not events:
+            print("no events in the requested window")
+            return 1
+        window_label = f", window {start or 'start'} .. {end or 'end'}"
+    else:
+        window_label = ""
 
     if args.walk_forward is not None:
         from .validation import format_fold_report, instrument_walk_forward, split_walk_forward
@@ -239,6 +269,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
 
         for label, result in per_symbol.items():
+            header = (
+                f"walk-forward: {label}, {len(events)} events, "
+                f"{len(bars)} bars{window_label}, {result.folds_promised} folds"
+            )
+            print(header)
             print(format_fold_report(result))
             print("")
         return 0
@@ -251,6 +286,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         grouper = group_by_instrument
     else:
         grouper = group_by_status
-    title = f"{len(events)} events, {len(bars)} bars, grouped by {args.group}"
+    title = f"{len(events)} events, {len(bars)} bars{window_label}, grouped by {args.group}"
     print(format_report(grouper(events, bars), title))
     return 0

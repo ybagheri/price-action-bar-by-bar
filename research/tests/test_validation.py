@@ -6,6 +6,7 @@ from pab_research import (
     OUT_OF_SAMPLE,
     PriceBar,
     SetupEvent,
+    filter_window,
     group_by_instrument,
     instrument_walk_forward,
     load_setup_events,
@@ -270,6 +271,222 @@ class FoldReportTests(unittest.TestCase):
         text = format_fold_report(split_walk_forward(events, bars, 2, min_resolved=3))
 
         self.assertIn("reliable: no", text)
+
+    def test_report_shows_the_decision_time_span_of_each_fold(self):
+        events = [make_event(i) for i in range(8)]
+        bars = make_bars(events)
+        result = split_walk_forward(events, bars, 4, min_resolved=1)
+        text = format_fold_report(result)
+
+        self.assertIn("decision-time span per fold", text)
+        for fold in result.folds:
+            self.assertIn(fold.span_label, text)
+
+
+class WindowFilterTests(unittest.TestCase):
+    def test_keeps_only_events_inside_the_window(self):
+        events = [make_event(i) for i in range(8)]
+        # Boundaries are taken from real decision_times so the fixture's
+        # one-minute decision offset cannot make this test ambiguous.
+        kept = filter_window(events, events[2].decision_time, events[4].decision_time)
+
+        self.assertEqual([event.event_id for event in kept], ["e2", "e3", "e4"])
+
+    def test_bounds_are_inclusive(self):
+        events = [make_event(i) for i in range(4)]
+        kept = filter_window(
+            events,
+            events[1].decision_time,
+            events[2].decision_time,
+        )
+        self.assertEqual([event.event_id for event in kept], ["e1", "e2"])
+
+    def test_unbounded_on_either_side(self):
+        events = [make_event(i) for i in range(8)]
+        self.assertEqual(
+            len(filter_window(events, start=events[5].decision_time)), 3
+        )
+        self.assertEqual(len(filter_window(events, end=events[1].decision_time)), 2)
+        self.assertEqual(len(filter_window(events)), 8)
+
+    def test_rejects_an_inverted_window(self):
+        events = [make_event(i) for i in range(4)]
+        with self.assertRaisesRegex(ValueError, "must not be later"):
+            filter_window(events, START + timedelta(hours=5), START)
+
+    def test_result_is_sorted_by_decision_time(self):
+        events = [make_event(i) for i in (4, 0, 3, 1)]
+        kept = filter_window(events)
+        self.assertEqual(
+            [event.decision_time for event in kept],
+            sorted(event.decision_time for event in kept),
+        )
+
+    def test_filters_on_decision_time_not_bar_open_time(self):
+        # An event opening at 00:00 but decided at 00:01 must fall in the
+        # 00:01 window, not the 00:00 one.
+        events = [make_event(0)]
+        self.assertEqual(event_decision(events[0]), events[0].bar_open_time + timedelta(minutes=1))
+        self.assertEqual(filter_window(events, start=events[0].decision_time), events)
+        self.assertEqual(
+            filter_window(events, end=events[0].bar_open_time), []
+        )
+
+
+def event_decision(event):
+    return event.decision_time
+
+
+class CommandLineTests(unittest.TestCase):
+    def _write(self, directory):
+        import csv
+        import os
+
+        events = [make_event(i) for i in range(8)]
+        bars = make_bars(events)
+
+        events_path = os.path.join(directory, "events.csv")
+        with open(events_path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(
+                [
+                    "event_id",
+                    "direction",
+                    "setup_type",
+                    "status",
+                    "bar_open_time",
+                    "bar_close_time",
+                    "confirmed_at",
+                    "decision_time",
+                    "entry",
+                    "invalidation",
+                    "target",
+                    "risk_reward",
+                    "quality",
+                    "engine_version",
+                    "parameter_version",
+                    "symbol",
+                    "period",
+                ]
+            )
+            for event in events:
+                writer.writerow(
+                    [
+                        event.event_id,
+                        event.direction,
+                        event.setup_type,
+                        event.status,
+                        event.bar_open_time.isoformat(),
+                        event.bar_close_time.isoformat(),
+                        event.confirmed_at.isoformat(),
+                        event.decision_time.isoformat(),
+                        event.entry,
+                        event.invalidation,
+                        event.target,
+                        event.risk_reward,
+                        event.quality,
+                        "1.40",
+                        "p",
+                        event.symbol,
+                        "M5",
+                    ]
+                )
+
+        bars_path = os.path.join(directory, "bars.csv")
+        with open(bars_path, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["open_time", "high", "low"])
+            for bar in bars:
+                writer.writerow([bar.open_time.isoformat(), bar.high, bar.low])
+        return events_path, bars_path
+
+    def test_window_flag_narrows_the_report(self):
+        import contextlib
+        import io
+        import tempfile
+
+        from pab_research.report import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            events_path, bars_path = self._write(directory)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = main(
+                    [
+                        events_path,
+                        bars_path,
+                        "--from",
+                        (START + timedelta(hours=2)).isoformat(),
+                    ]
+                )
+        self.assertEqual(code, 0)
+        self.assertIn("6 events", buffer.getvalue())
+        self.assertIn("window", buffer.getvalue())
+
+    def test_empty_window_reports_an_error_instead_of_an_empty_table(self):
+        import contextlib
+        import io
+        import tempfile
+
+        from pab_research.report import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            events_path, bars_path = self._write(directory)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = main(
+                    [
+                        events_path,
+                        bars_path,
+                        "--from",
+                        (START + timedelta(days=3650)).isoformat(),
+                    ]
+                )
+        self.assertEqual(code, 1)
+        self.assertIn("no events in the requested window", buffer.getvalue())
+
+    def test_inverted_window_reports_an_error(self):
+        import contextlib
+        import io
+        import tempfile
+
+        from pab_research.report import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            events_path, bars_path = self._write(directory)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = main(
+                    [
+                        events_path,
+                        bars_path,
+                        "--from",
+                        (START + timedelta(hours=5)).isoformat(),
+                        "--to",
+                        START.isoformat(),
+                    ]
+                )
+        self.assertEqual(code, 1)
+        self.assertIn("invalid window", buffer.getvalue())
+
+    def test_walk_forward_header_names_the_fold_count(self):
+        import contextlib
+        import io
+        import tempfile
+
+        from pab_research.report import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            events_path, bars_path = self._write(directory)
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = main(
+                    [events_path, bars_path, "--walk-forward", "4"]
+                )
+        self.assertEqual(code, 0)
+        self.assertIn("8 events", buffer.getvalue())
+        self.assertIn("4 folds", buffer.getvalue())
+        self.assertIn("decision-time span per fold", buffer.getvalue())
 
 
 if __name__ == "__main__":

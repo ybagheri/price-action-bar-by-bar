@@ -22,6 +22,10 @@
   and an expectancy/win-rate degradation gap.
 - Cross-instrument grouping and per-instrument walk-forward, surfaced as
   `--group instrument` and `--walk-forward N [--walk-forward-per-instrument]`.
+- Inclusive `--from` / `--to` date windowing on `decision_time`, for slicing
+  a multi-year export into explicit periods.
+- Each fold's decision-time span is now printed, so a multi-year walk-forward
+  result can be read without reconstructing the boundaries by hand.
 - `symbol` and `period` columns in the event export.
 - `CPabUtils::NormalizedSlopePerBar` and the `TestNormalizedPatternSlopes`
   harness group.
@@ -57,7 +61,7 @@
 - MQL5 harness: 0 compile errors, 0 warnings.
 - MQL5 harness runtime: 54 passed, 0 failed (Alpari MT5_3, EURUSD H1, 2026-09-29).
   Archived at `research/test_artifacts/mql5_harness_20260929.txt`.
-- Python research suite: 46 tests passed; `pytest` and `unittest` agree.
+- Python research suite: 57 tests passed; `pytest` and `unittest` agree.
 - Python `compileall`: passed.
 - Walk-forward and instrument CLI paths exercised end to end on a clearly
   labelled **synthetic** export. No real event export has been analysed.

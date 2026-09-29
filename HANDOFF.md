@@ -20,13 +20,13 @@ be labelled separately.
 | MQL5 indicator compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 harness compile | 0 errors, 0 warnings | MetaEditor log, 2026-09-29 |
 | MQL5 harness runtime | 54 passed, 0 failed | `research/test_artifacts/mql5_harness_20260929.txt` |
-| Python tests | 46 passed | `pytest` and `unittest` both agree |
+| Python tests | 57 passed | `pytest` and `unittest` both agree |
 | Python `compileall` | clean | `research/` |
 
 Runtime was on Alpari MT5_3 build 6230, EURUSD H1, 2026-09-29. Do not report
 any assertion as passing unless a runtime log shows it.
 
-## What was done in the last two phases
+## What was done in the last three phases
 
 **Phase 13 - walk-forward and multi-instrument validation.** Added
 `research/pab_research/validation.py`: chronological splitting of the event
@@ -59,6 +59,15 @@ version moved to a single `PAB_ENGINE_VERSION` macro used by the export, with
 `period` columns, without which multi-instrument grouping has nothing to group
 on; old files still load and those rows report as `unspecified` rather than
 being dropped.
+
+**Phase 15 - date windowing and readable fold spans.** A multi-year export is
+not usable with the Phase 13 tooling alone, so added inclusive `--from` / `--to`
+filtering on `decision_time`, and made each fold's decision-time span print in
+the report. The filter uses `decision_time` rather than `bar_open_time`
+deliberately: that is the instant the engine committed and the field the
+walk-forward split cuts on, so a window and a fold can never disagree about
+which side of a boundary an event falls on. An empty or inverted window reports
+why and exits non-zero instead of printing an empty table.
 
 ## Conventions that matter
 

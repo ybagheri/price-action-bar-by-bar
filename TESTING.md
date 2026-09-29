@@ -38,7 +38,7 @@ both ignored, so without `-t .` the discovery run imports nothing and reports ze
 - MQL5 harness compile: 0 errors, 0 warnings.
 - MQL5 harness runtime: 54 passed, 0 failed (Alpari MT5_3 build 6230, EURUSD H1, 2026-09-29).
   Archived at `research/test_artifacts/mql5_harness_20260929.txt`.
-- Python tests: 46 passed, `pytest` and `unittest` agree.
+- Python tests: 57 passed, `pytest` and `unittest` agree.
 - Python syntax compilation: passed.
 
 ## MQL5 harness coverage
