@@ -23,6 +23,20 @@ as usual. To confirm which install a hash belongs to, read
 present and are used for unrelated work, so any process check must compare the
 executable path rather than the process name.
 
+Git needs help too. `git` is not on `PATH` here; it is at
+`C:\Users\bagheri\AppData\Local\Programs\Git\cmd`. For `push`, also set:
+
+```powershell
+$env:GIT_SSH = "C:\Windows\System32\OpenSSH\ssh.exe"
+```
+
+Without it a push fails with **"Host key verification failed"** even though the
+credentials are perfectly good and `ssh -T git@github.com` authenticates
+successfully. Git otherwise picks its own MSYS `ssh` under `Git\usr\bin`,
+which does not pick up `C:\Users\bagheri\.ssh\known_hosts`. The message
+blames the host key rather than the ssh choice, so it reads like a security
+problem when it is a path problem.
+
 ## Verified commands
 
 MQL5 compile with the installed MetaEditor:
