@@ -44,13 +44,49 @@
 #include "../Include/PriceActionBarByBar/PabEngine.mqh"
 
 input group "=== Replay range ==="
-// Leave either bound EMPTY to mean "unbounded". That is the useful default
-// for a headless run, because MT5's Strategy Tester startup config cannot
-// pass indicator parameters, so these compiled-in defaults are what an
-// automated run actually gets. An explicit bound is still honoured when the
-// EA is run by hand from the Navigator.
-input string InpFromDate        = "";           // First bar to replay (YYYY.MM.DD), empty = oldest available
-input string InpToDate          = "";           // Exclusive end (YYYY.MM.DD), empty = newest available
+// PHASE 20. These are PINNED to the study window, and that is a change from
+// the previous empty/unbounded default.
+//
+// Why they are compiled in at all: MT5's Strategy Tester startup config
+// cannot pass indicator parameters, so these defaults are what an automated
+// run actually gets. And the tester's OWN FromDate/ToDate do not bound what
+// this EA replays - they drive the tick stream only. A run configured for
+// 2012-2014 with these inputs left empty reported
+//
+//   EURUSD H4, 1546 bars from 2011-01-03 00:00:00 to 2011-12-30 20:00:00
+//
+// a window that does not intersect the one that was requested. That is the
+// easiest possible way to believe you measured a period you did not.
+//
+// Why pinning used to look broken, and was: the (start_time, stop_time)
+// CopyRates overload returns 4401 in the tester, so a pinned window came back
+// empty and looked like missing data. The exporter now filters by timestamp
+// itself (see below), and pinning works.
+//
+// What pinning does NOT fix: the agent does not hold every timeframe for
+// every year, and WHICH year it serves drifts between runs on the same
+// machine and broker. Measured on EURUSD, all Alpari-MT5-Demo, build 6230:
+//
+//   unbounded, 2026-09-30 08:56   H4  1546 bars  2011-01-03 .. 2011-12-30
+//   window 2011,  2026-09-30 09:0x M5 72513 bars  2010-01-04 .. 2010-12-31
+//   window 2011,  2026-09-30 09:0x H4  1547 bars  2010-01-04 .. 2010-12-31
+//   window 2011,  2026-09-30 09:0x D1   258 bars  2010-01-04 .. 2010-12-31
+//   Phase 19,      2026-09-29      M5 73752 bars  2013-01-01 .. 2013-12-31
+//
+// So a pinned window yields 0 bars whenever the agent happens to be serving a
+// different year, and two timeframes measured minutes apart can be
+// measuring different YEARS. If a pinned window comes back empty the failure
+// message prints the span the agent really offered, so the next window to
+// try is a fact rather than a guess.
+//
+// The window below is 2009 because that is a year this agent can serve on all
+// four EURUSD timeframes, and Phase 20 needed M5, H1, H4 and D1 over the SAME
+// period or the comparison between them means nothing. To reproduce the
+// Phase 19 M5/H1 2013 study, set these to 2013.01.01 and 2014.01.01 - and
+// then read the range the run printed, because the requested window is not
+// evidence of anything.
+input string InpFromDate        = "2009.01.01"; // First bar to replay (YYYY.MM.DD), empty = oldest available
+input string InpToDate          = "2010.01.01"; // Exclusive end (YYYY.MM.DD), empty = newest available
 input int    InpMaxBars         = 0;             // 0 = no cap on the number of bars replayed
 
 input group "=== Bar Classification ==="
@@ -187,29 +223,34 @@ int OnInit()
    // the chart see byte-identical series, and index 0 is the newest bar,
    // which is the bar we then refuse to decide on.
    //
-   // The (start_time, stop_time) overload is used deliberately. The
-   // (start_time, count) overload is ambiguous against
-   // (start_pos, count) because a datetime silently converts to int, and
-   // choosing wrong silently replays the wrong years.
+   // PHASE 20. The (start_time, stop_time) overload is NOT used, even when
+   // a window is set, because it does not work in the Strategy Tester.
+   // Measured, on this machine, all four symbols at H4 and D1:
+   //
+   //   PabEventExport: CopyRates got -1 bars for EURUSD H4 over
+   //                    2013.01.01..2014.01.01, error 4401
+   //
+   // Error 4401 is ERR_NO_HISTORY, and the history is demonstrably there:
+   // the same symbol and timeframe load fine through the positional
+   // (start_pos, count) overload. So the (from, to) form reports "no
+   // history" for a window it actually holds, which is the worst possible
+   // failure mode: it looks like missing data rather than a wrong call.
+   //
+   // No (symbol, timeframe, rates[]) form exists in MQL5, and the
+   // (start_time, count) form is ambiguous against (start_pos, count)
+   // because a datetime silently converts to int. So the whole available
+   // history is requested positionally and the window is applied by
+   // timestamp below. That is one code path for both cases, which is also
+   // the only way an archived run can be reproduced.
    MqlRates rates[];
-   int got;
-   if(from != 0 && to != 0)
-      got = CopyRates(_Symbol, _Period, from, to, rates);
-   else
+   int available = iBars(_Symbol, _Period);
+   if(available <= 0)
      {
-      // No (symbol, timeframe, rates[]) form exists in MQL5, and the
-      // (start_time, count) form is ambiguous against (start_pos, count)
-      // because a datetime silently converts to int. Ask for the whole
-      // history positionally instead, then filter below.
-      int available = iBars(_Symbol, _Period);
-      if(available <= 0)
-        {
-         PrintFormat("PabEventExport: no history for %s %s, iBars returned %d, error %d",
-                     _Symbol, PeriodLabel(_Period), available, GetLastError());
-         return(INIT_FAILED);
-        }
-      got = CopyRates(_Symbol, _Period, 0, available, rates);
+      PrintFormat("PabEventExport: no history for %s %s, iBars returned %d, error %d",
+                  _Symbol, PeriodLabel(_Period), available, GetLastError());
+      return(INIT_FAILED);
      }
+   int got = CopyRates(_Symbol, _Period, 0, available, rates);
    if(got <= 0)
      {
       PrintFormat("PabEventExport: CopyRates got %d bars for %s %s over %s..%s, error %d",
@@ -244,9 +285,28 @@ int OnInit()
      }
    if(kept < 50)
      {
-      PrintFormat("PabEventExport: only %d bars in the requested window; need at least 50. "
-                  "Check that the broker actually has history for %s %s over that range.",
-                  kept, _Symbol, PeriodLabel(_Period));
+      // PHASE 20. This message used to tell the reader to "check that the
+      // broker actually has history", which is a GUESS about the cause, and
+      // on this machine it was wrong every time. The tester agent can hold a
+      // completely different set of years per timeframe, so "the window is
+      // empty" and "the data is missing" are different faults with different
+      // fixes, and the operator cannot tell them apart from the old text.
+      //
+      // So it now reports what the agent actually offered: how many bars it
+      // had, and the real first and last timestamps of the series the filter
+      // was applied to. The two cases are then self-evident from the output
+      // rather than inferred from prose.
+      PrintFormat("PabEventExport: only %d bars in the requested window %s..%s; need at least 50.",
+                  kept,
+                  (from == 0 ? "oldest" : InpFromDate), (to == 0 ? "newest" : InpToDate));
+      PrintFormat("PabEventExport: the agent offered %d bars for %s %s, spanning %s .. %s.",
+                  n, _Symbol, PeriodLabel(_Period),
+                  TimeToString(rates[0].time, TIME_DATE|TIME_MINUTES),
+                  TimeToString(rates[n - 1].time, TIME_DATE|TIME_MINUTES));
+      Print("PabEventExport: an empty window with a populated range means the requested "
+            "window is not the one the agent served, which is a tester cache limitation, "
+            "not missing broker data. Re-run with a window inside the span printed above, "
+            "or leave the bounds EMPTY to take whatever the agent actually has.");
       return(INIT_FAILED);
      }
    if(kept < n)

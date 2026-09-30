@@ -1,0 +1,105 @@
+################ Model=0 ################
+build=6230
+server=Alpari-MT5-Demo
+symbol=EURUSD
+point=0.00001
+digits=5
+trade_mode=0
+period=5
+bars_via_iBars=72885
+parse_old_from=2013.01.02 00:00 msc=1357084800000
+parse_old_to=2013.01.03 00:00
+parse_new_from=2026.09.20 00:00
+parse_new_to=2026.09.21 00:00
+
+live_tick_spread_points=35.0
+first_ontick_time=2013.01.02 00:05
+bars_via_iBars=72886
+iSpread_handle=5
+iSpread_CopyBuffer_copied=-1 error=4807
+CopyRates_count=1 error=0
+bars_first=2013.01.02 00:05 bars_last=2013.01.02 00:05
+
+=== window A (study year) 2013.01.02 .. 2013.01.03
+  sample tick 1 time=2013.01.02 00:05 bid=1.32025 ask=1.32060 spread_pts=35.0 flags=30
+  calls=4
+  tick_total=1
+  tick_with_bid_ask=1
+  tick_with_positive_spread=1
+  ticks_per_day=1
+  spread_points_min=35.00
+  spread_points_mean=35.00
+  spread_points_max=35.00
+  VERDICT=GENERATED_TICKS - density is about one per minute, i.e. synthesised from OHLC, not real
+
+=== window B (recent) 2026.09.20 .. 2026.09.21
+  calls=4
+  tick_total=0
+  tick_with_bid_ask=0
+  tick_with_positive_spread=0
+  ticks_per_day=0
+  spread_points_min=NONE_MEASURED
+  VERDICT=NO_TICKS - CopyTicksRange returned nothing for this window
+
+################ Model=2 ################
+build=6230
+server=Alpari-MT5-Demo
+symbol=EURUSD
+point=0.00001
+digits=5
+trade_mode=0
+period=5
+bars_via_iBars=72885
+parse_old_from=2013.01.02 00:00 msc=1357084800000
+parse_old_to=2013.01.03 00:00
+parse_new_from=2026.09.20 00:00
+parse_new_to=2026.09.21 00:00
+
+live_tick_spread_points=35.0
+first_ontick_time=2013.01.02 00:05
+bars_via_iBars=72886
+iSpread_handle=5
+iSpread_CopyBuffer_copied=-1 error=4807
+CopyRates_count=1 error=0
+bars_first=2013.01.02 00:05 bars_last=2013.01.02 00:05
+
+=== window A (study year) 2013.01.02 .. 2013.01.03
+  calls=4
+  tick_total=0
+  tick_with_bid_ask=0
+  tick_with_positive_spread=0
+  ticks_per_day=0
+  spread_points_min=NONE_MEASURED
+  first_error=4014
+  VERDICT=NO_TICKS - CopyTicksRange returned nothing for this window
+
+=== window B (recent) 2026.09.20 .. 2026.09.21
+  calls=4
+  tick_total=0
+  tick_with_bid_ask=0
+  tick_with_positive_spread=0
+  ticks_per_day=0
+  spread_points_min=NONE_MEASURED
+  first_error=4014
+  VERDICT=NO_TICKS - CopyTicksRange returned nothing for this window
+
+
+################ tester log, verbatim ################
+
+Both runs report 842 bars 'generated'. The tick counts are the sharper evidence:
+
+  Model=0 (Every tick)   EURUSD,M5: 416989 ticks, 842 bars generated
+  Model=2 (real ticks)   EURUSD,M5:   3145 ticks, 842 bars generated
+
+Asking for REAL ticks made the tick count 132x WORSE, not better. Real broker
+tick data for three days of EURUSD is millions of ticks; 3,145 ticks is a
+coarse fallback, roughly four per M5 bar. So real tick mode did not engage.
+It degraded instead of failing loudly, which is why the tick count, and not the
+absence of an error, is the thing worth recording.
+
+Consequence, and it is the whole point of this artifact: the bid and ask the
+tester supplies are SYNTHESISED from OHLC, and the spread inside them is a
+tester SETTING rather than a measurement of the broker. The 35.0-point spread
+in the Model=0 output is that setting, reported faithfully. Recording it as a
+measured spread would be the exact failure this project exists to prevent, so
+Phase 19's blank cost columns remain correct and are left alone.

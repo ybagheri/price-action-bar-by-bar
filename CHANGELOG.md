@@ -105,8 +105,25 @@
 - `research/tests/test_costs.py`: 40 tests over the cost model, the gross/net
   split, the break-even solution, the scenarios, and the loader's handling of
   absent and blank cost columns.
+- `MQL5/Experts/PabSpreadProbe.mq5`, a viability probe that establishes
+  whether a historical per-bar spread can be measured on this machine. It
+  reports what it observed including every failure, and ends in a VERDICT line
+  worded so it cannot be read optimistically. Archived at
+  `research/test_artifacts/spread_probe_20260930.txt`.
 
 ### Fixed
+
+- **`CopyRates` with `(start_time, stop_time)` returns 4401 in the Strategy
+  Tester** for windows it demonstrably holds; the positional
+  `(start_pos, count)` form loads the same data. The exporter now always uses
+  the positional form and filters by timestamp itself, which is what makes a
+  pinned replay window work headlessly at all.
+- **The exporter's empty-window failure message asserted a cause it had not
+  established.** It said "Check that the broker actually has history", which
+  was wrong every time it fired and is indistinguishable from a genuinely
+  empty cache. It now prints how many bars the agent actually offered and the
+  real first and last timestamps of that span, so the two cases are separable
+  from the output rather than inferred from prose.
 
 - **The export wrote 0.0 into its cost columns when the spread could not be
   measured.** The MT5 Strategy Tester exposes no historical spread buffer:
@@ -277,25 +294,69 @@ This is a statement about this engine's output on one broker's feed. It is
 **not** a refutation of the Al Brooks material the indicator is based on, and
 no profitability claim is made in either direction.
 
+### Measured result, swing timeframes (Phase 20)
+
+**No timeframe shows an out-of-sample edge, and H4 has no gross edge at all.**
+EURUSD 2009, M5/H1/H4/D1 over the same window, 79,673 events, engine 1.50 with
+an unchanged parameter fingerprint.
+
+- Gross expectancy: M5 **+0.003R**, H1 **+0.035R**, H4 **-0.068R**, D1
+  **+0.115R**. Walk-forward, 4 folds: M5 -0.00R to +0.01R, H1 +0.01R to
+  +0.06R, H4 -0.10R to -0.03R, D1 **+0.30R to -0.09R**.
+- **H4 is the significant one.** Its gross expectancy is negative before any
+  cost is applied, so there is no edge for a cost model to erode and
+  break-even is undefined. That is a stronger negative than Phase 19's, which
+  at least had a positive gross figure to lose.
+- **D1's +0.115R is the largest positive gross figure in the project and it is
+  entirely in-sample**, a -0.39R degradation on 122 resolved outcomes. It is
+  reported here so it cannot be mistaken for a result. The report's
+  `reliable: yes` flag only means the resolved count cleared a threshold; it
+  is not a claim that the edge is real.
+- At 0.001% of price, H1 is still positive (+0.025R) where M5 is already
+  negative (-0.038R), because H1's wider stop makes the same cost a smaller
+  fraction of R. Not a reason to prefer H1: its break-even is 0.0060% of
+  price and it is negative at 0.005%.
+- One market and one year. Not a widening of the Phase 19 study, and not
+  poolable with it.
+
+**Roadmap item 5's premise does not reproduce.** "H1 takes 24-34 bars to exit
+with slightly negative expectancy" does not happen here: H1 exits in 2.8 bars
+at +0.035R, and bars-to-exit is 2.4-3.3 on every timeframe including D1, under
+the same engine and parameters that produced the 28.9-bar figure. The long
+holding period is a property of the 2013 sample, not of H1 construction.
+`evaluate_setup` has no maximum holding horizon, and the baseline target is
+`entry +/- 2.0 * bar.range`, which is why holding time in *bars* is roughly
+timeframe-invariant while holding time in *hours* is not. Nothing was tuned.
+
 ### Known gaps
 
 - The harness covers the analyzer classes, not `CPabEngine`, `OnCalculate`, or
   the chart renderer. Duplicate ticks and history reload remain untested, and
   the chart path is compile-verified and replay-verified but not
-  lifecycle-verified.
-- **No measured spread on a historical study.** The chart path reads per-bar
-  spread correctly, since MT5 hands `OnCalculate` a real spread array, but the
-  Strategy Tester exposes none. Obtaining a measured historical cost needs
-  live forward collection or exported tick data. Until then every cost figure
-  is an assumption, however clearly it is labelled.
+  lifecycle-verified. **This is now the most actionable remaining gap,
+  because it is the one that does not depend on broker data.**
+- **No measured spread on a historical study, and Phase 20 established that it
+  is not obtainable headlessly.** `iSpread`/`CopyBuffer` still fails with 4807;
+  `CopyTicksRange` is clipped to the tester's current time; real tick mode
+  silently degrades to 3,145 ticks against 416,989; there are no per-day tick
+  files on the machine; and the tester agent is offline, so it cannot download
+  any. The tester's bid/ask are synthesised and the spread inside them is a
+  tester **setting**. It needs the terminal UI, not the command line.
+  `MQL5/Experts/PabSpreadProbe.mq5` and
+  `research/test_artifacts/spread_probe_20260930.txt` are the evidence.
 - Slippage and commission remain assumptions everywhere, because neither is
   observable from a bar series by construction.
-- Timeframe breadth is M5 and H1 only. Nothing here says whether the rules do
-  anything on a swing timeframe.
-- One broker's demo feed, one year.
-- The setups are tight: average bars-to-exit is under 3 for most types, and a
-  large share of exits are ambiguous (both levels touched in one M5 bar).
-- Indicator lifecycle (duplicate ticks, history reload) has no runtime test.
+- The swing timeframes are measured on **one market, one year** (EURUSD 2009).
+  The other three symbols were not run at H4 or D1.
+- The tester's history window is **not selectable and drifts between runs**, so
+  two timeframes measured minutes apart can cover different years. The
+  tester's own `FromDate`/`ToDate` do not bound the replay at all. Always read
+  the range a run printed.
+- One broker's demo feed per study. An **Epic Pips MT5 Terminal** is already
+  installed on this machine and unused.
+- The setups are tight: average bars-to-exit is under 3.5 for every timeframe
+  measured, and a large share of exits are ambiguous (both levels touched in
+  one bar).
 - Multi-timeframe and session context are not implemented.
 - NinjaTrader has not been recompiled or brought to feature parity; its
   slope math is still dimensionally wrong.

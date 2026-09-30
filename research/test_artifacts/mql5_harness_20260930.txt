@@ -1,0 +1,14 @@
+MQL5 regression harness, headless Strategy Tester run
+Phase 20. Engine unchanged by this phase; re-run to confirm the exporter edits
+regressed nothing in the analyzer suite.
+Terminal: Alpari MT5_3 build 6230
+Date   : 2026-09-30
+Note   : the exporter (Experts\PabEventExport.mq5) changed in Phase 20. The
+harness does NOT cover the exporter, so this pass says the analyzer suite is
+intact and nothing more.
+
+engine_version 1.50
+build 6230
+symbol EURUSD
+result 84 0
+verdict PASS

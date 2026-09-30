@@ -1,0 +1,214 @@
+PriceActionBarByBar - SWING TIMEFRAME study, EURUSD 2009, M5/H1/H4/D1
+Phase 20. The question: the study had never been run on a timeframe slower
+than H1, and the H1 numbers were the least favourable of the eight. Nothing
+was known about H4 or D1 at all.
+
+Terminal : Alpari MT5_3 build 6230, Alpari-MT5-Demo
+Engine   : PAB_ENGINE_VERSION 1.50, via Experts\PabEventExport.ex5
+Params   : q55|rr1.50|f2|l1.50|s0.70|b10|c2.00  (identical to Phase 19)
+Harness  : 84 passed, 0 failed, same engine build
+Window   : 2009-01-02 to 2009-12-31. ONE market, ONE year, FOUR timeframes,
+           all four measured over the SAME period, which is what makes the
+           comparison between them mean anything.
+
+  timeframe   bars   events
+  M5         71817    71816
+  H1          6072     6071
+  H4          1532     1531
+  D1           256      255
+
+======================================================================
+ THE HEADLINE, STATED PLAINLY
+======================================================================
+No timeframe shows an out-of-sample edge. M5 is flat, H1 is flat, H4 is
+NEGATIVE in both in-sample and out-of-sample, and D1 looks positive only
+until you split it.
+
+  timeframe   resolved   win%   grossR   breakEvenSpread   bars to exit
+  --------------------------------------------------------------------
+  EURUSD M5       31799  47.7%   +0.003   0.0001% of price         2.5
+  EURUSD H1        2708  47.6%   +0.035   0.0060% of price         2.8
+  EURUSD H4         678  42.6%   -0.068   n/a (gross < 0)           2.7
+  EURUSD D1         122  48.4%   +0.115   0.1152% of price          3.3
+
+H4 is the one group whose gross edge is NEGATIVE before a single unit of
+cost is applied. Break-even is undefined for it because there is nothing to
+break even against. That is a stronger negative than Phase 19's: it does not
+depend on any cost assumption, and no plausible cost model can rescue it.
+
+======================================================================
+ WALK-FORWARD - 4 chronological folds, decisions never cross a boundary
+======================================================================
+  timeframe   in_sample   out_of_sample   degradation (OOS - IS)
+  ------------------------------------------------------------------
+  M5              -0.00R           +0.01R        +0.01R
+  H1              +0.01R           +0.06R        +0.05R
+  H4              -0.10R           -0.03R        +0.07R
+  D1              +0.30R           -0.09R        -0.39R
+
+D1 IS THE ONE TO WATCH. Its pooled +0.115R is the largest positive gross
+figure anywhere in this project, and it is entirely an in-sample artefact:
++0.30R in-sample becomes -0.09R out-of-sample, a -0.39R degradation. That is
+the textbook signature of fitting noise, and it is exactly what a 122-outcome
+sample is entitled to produce. It is reported here so it cannot be mistaken
+for a result. The report prints "reliable: yes" for D1, but that flag only
+means the resolved count cleared the threshold; it is not a statement about
+whether the edge is real, and on this evidence it is not.
+
+  D1 per-fold gross: +0.51R, +0.01R, +0.14R, -0.17R
+  H4 per-fold gross: -0.02R, +0.06R, -0.18R, -0.13R
+
+H4 is negative in 3 of 4 folds and negative in both pooled halves. That is a
+consistent absence of edge rather than a noisy one.
+
+======================================================================
+ RE-PRICED AT ASSUMED SPREADS - assumptions, not measurements
+======================================================================
+Spread only, as a percentage of price. Slippage and commission are excluded,
+so a real cost is at least this large.
+
+  assumed round-trip spread   M5        H1        H4        D1
+  ------------------------------------------------------------------------
+  0.000% of price          +0.003R  +0.035R  -0.068R  +0.115R
+  0.001% of price          -0.038R  +0.025R  -0.073R  +0.114R
+  0.005% of price          -0.201R  -0.015R  -0.091R  +0.108R
+
+The H1 row is the most interesting of the four and is a change of emphasis
+rather than a change of conclusion. At a thousandth of a percent of price,
+H1 is still POSITIVE (+0.025R) where M5 is already clearly negative
+(-0.038R). That is because H1's stop distance is larger in price terms, so a
+given cost is a smaller fraction of R.
+
+It should not be mistaken for a reason to prefer H1. Two things bound it:
+H1's edge is +0.035R gross and its break-even is 0.0060% of price, so the
+margin over a realistic spread is thin and rests on a single broker, a
+single market and a single year. And at 0.005% it is already negative. A
+result that survives one cost scenario and not the next is not a result.
+
+======================================================================
+ WHAT THIS DOES NOT ESTABLISH
+======================================================================
+This is ONE market and ONE year. It does not widen the study in the way
+Phase 18 widened it, because three of the four symbols could not be run at
+H4/D1 within the available history, and the reason is worth recording.
+
+- **The other three markets are missing.** Only EURUSD was measured on the
+  swing timeframes. GBPUSD, USDCHF and USDJPY are absent, so "H4 is
+  negative" is a statement about EURUSD H4 in 2009, not about H4.
+- **2009 is not 2013.** Phase 19's M5/H1 study covers 2013. This covers
+  2009. The two are NOT poolable and no figure here should be compared with
+  a Phase 19 figure as though the market period were held constant.
+- **The cost model is still unmeasured.** Every cost figure above is GROSS,
+  and every scenario row is an assumption supplied on the command line. No
+  measured spread exists. See the spread probe note at the end.
+- **D1's sample is 122 resolved outcomes.** It cannot settle a question about
+  a timeframe on its own, and the walk-forward above says its positive
+  figure does not survive.
+- **Nothing here says H4 or D1 are worse than M5 in general.** It says that on
+  this market, in this year, neither showed an out-of-sample edge, and H4
+  showed a negative gross expectancy.
+
+======================================================================
+ A FINDING THAT CONTRADICTS ROADMAP ITEM 5
+======================================================================
+Roadmap item 5 rests on the claim that "H1 setups take 24-34 bars to exit
+with slightly negative expectancy, suggesting the stop and target logic is
+not doing anything on that timeframe."
+
+On this sample that does not reproduce. H1 exits in 2.8 bars and is
++0.035R gross, and bars-to-exit is 2.4 to 3.3 on EVERY timeframe including
+D1. The same engine and the same parameter fingerprint that produced
+Phase 19's 28.9-bar H1 figure produce 2.8 bars here.
+
+Same engine (1.50), same parameters, same market (EURUSD H1), different
+year. So the long H1 holding period is a property of the 2013 SAMPLE, not a
+structural property of H1 setup construction. Whatever produced 24-34 bars
+there is not reproducible from the H1 timeframe alone, and "the stop and
+target logic is not doing anything on H1" is not supported by this evidence.
+
+What the code actually does, for the record, and without any change to it:
+
+  - `evaluate_setup` in research/pab_research/outcomes.py has NO maximum
+    holding horizon. It walks forward until the target or the invalidation is
+    touched, and returns "expired" only when the data runs out. bars_to_exit
+    is therefore purely a consequence of where the levels sit.
+  - The baseline target is `entry +/- 2.0 * bar.range`
+    (MQL5/Include/PriceActionBarByBar/DecisionEngine.mqh:166) - two times the
+    range of the single bar the decision was taken on.
+  - That target is then CLAMPED toward context resistance or support
+    (DecisionEngine.mqh:185-201) before the reward/risk gate rejects anything
+    below the 1.50 minimum.
+
+Because the target is anchored to one bar's range, the holding period in
+BARS is roughly timeframe-invariant, which is what the 2.4-3.3 column shows.
+The holding period in TIME is not: 2.5 M5 bars is about 12 minutes and 3.3 D1
+bars is about a week. That is a real asymmetry between the timeframes and it
+is not visible in any figure reported so far, because the report counts bars
+and not hours. It is worth knowing and it is NOT acted on here.
+
+No threshold was tuned in response to any of this.
+
+======================================================================
+ WHY ONLY ONE MARKET: the tester agent's history is not selectable
+======================================================================
+Widening to H4/D1 hit a platform limitation that is easy to mistake for
+missing data, so it is recorded precisely.
+
+The Strategy Tester's own FromDate/ToDate do NOT bound what the exporter
+replays. A run configured for 2012-2014 with the exporter's date inputs left
+empty reported "EURUSD H4, 1546 bars from 2011-01-03 to 2011-12-30" - a
+window that does not intersect the one requested. The tester's range drives
+the tick stream only.
+
+The agent also does not hold every timeframe for every year, and which year
+it serves drifts between runs on the same machine and broker:
+
+  unbounded, 2026-09-30 08:56    H4  1546 bars  2011-01-03 .. 2011-12-30
+  unbounded, 2026-09-30 09:0x    M5 72513 bars  2010-01-04 .. 2010-12-31
+  pinned 2009,  2026-09-30 11:0x  M5 71817 bars  2009-01-02 .. 2009-12-31
+
+Pinning the window to 2013 made all eight H4/D1 runs report zero bars. Left
+unbounded, each run served a different year, so the four timeframes could not
+be placed on a common period. Pinning to 2009 worked, and is why this study
+is a single year: 2009 is a year the agent can serve on all four timeframes
+for EURUSD.
+
+The exporter's failure message was changed in this phase as a direct result.
+It used to say "Check that the broker actually has history", which is a guess
+about the cause and was wrong every time it fired. It now prints the span the
+agent actually offered, so an empty window and a genuinely empty cache are
+distinguishable from the output instead of inferred from prose.
+
+======================================================================
+ COST MEASUREMENT - STILL NOT MEASURED, AND NOW KNOWN WHY
+======================================================================
+Phase 20 item 1 was to obtain a measured spread. It is BLOCKED on this
+machine, and the reason is established rather than assumed. The probe is
+committed at MQL5/Experts/PabSpreadProbe.mq5 and its output is archived at
+research/test_artifacts/spread_probe_20260930.txt.
+
+  - `iSpread` + `CopyBuffer` still fails with error 4807, reconfirmed on
+    2026-09-30. Phase 19's finding stands.
+  - `CopyTicksRange` cannot substitute. In the tester it is clipped to the
+    tester's CURRENT time: querying 2013.01.02..2013.01.03 from a run sitting
+    at 2013.01.02 00:05 returned exactly ONE tick, the one that woke OnTick.
+  - Real tick mode does not engage. The tester log for the real-ticks run
+    says "EURUSD,M5: 3145 ticks, 842 bars generated". Requesting real ticks
+    made the tick count 132x WORSE than the 416,989 of the generated run.
+  - There are no per-day tick files anywhere under bases\...\ticks\<symbol>\.
+    Only the ticks.dat index exists, so there is no cached tick history to
+    reconstruct from.
+  - ACCOUNT_TRADE_MODE reads 0 inside the tester, so an agent cannot reach the
+    broker to download ticks, and a /config run does not trigger the
+    download the terminal UI would.
+
+So the bid and ask the tester supplies are SYNTHESISED from OHLC and the
+spread inside them is a tester SETTING. The 35.0-point spread the probe
+reports is that setting, reported faithfully. Writing it into a cost column
+as "measured" is the exact failure this project exists to prevent, so the
+blank cost columns are left alone and every expectancy here says GROSS.
+
+Live forward collection remains possible in principle - the terminal IS
+authorized to Alpari-MT5-Demo - but it needs a chart running for days or
+weeks and it cannot cover 2009 retrospectively, so it would measure a
+different period than the one these events come from.

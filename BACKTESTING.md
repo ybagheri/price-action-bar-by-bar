@@ -150,25 +150,52 @@ zero; pooled expectancy is +0.02R in sample and +0.02R out of sample,
 degradation −0.00R. Archived at
 `research/test_artifacts/study_multi_market_2014.txt`.
 
-The one clear signal is structural and negative: **H1 setups average 31 to 36
-bars to exit and are slightly negative, while M5 setups average about 3 bars
-and are slightly positive.** An effect that needs 35 bars to resolve is a
-different claim from one that resolves in 3, and needs a different cost and
-risk model to hold.
+**And the first swing-timeframe measurement is also negative.** EURUSD 2009,
+all four timeframes over the same window, 79,673 events. Gross expectancy by
+timeframe: M5 +0.003R, H1 +0.035R, **H4 −0.068R**, D1 +0.115R. Under a
+4-fold walk-forward, **no timeframe shows an out-of-sample edge**: M5 −0.00R
+in sample against +0.01R out, H1 +0.01R against +0.06R, H4 −0.10R against
+−0.03R, and D1 +0.30R against **−0.09R**, a −0.39R degradation on 122
+resolved outcomes. H4 is the notable one: its gross expectancy is negative
+*before any cost is applied*, so there is no edge for a cost model to erode
+and break-even is undefined. Archived at
+`research/test_artifacts/study_swing_timeframes_eurusd_2009.txt`.
+
+The one clear signal was once thought to be structural: **H1 setups averaged
+31 to 36 bars to exit and were slightly negative, while M5 setups averaged
+about 3 bars.** Phase 20 tested that and it does not reproduce. On EURUSD
+2009, H1 exits in 2.8 bars and is +0.035R, and bars-to-exit is 2.4 to 3.3 on
+*every* timeframe including D1, under the same engine version and the same
+parameter fingerprint that produced the 31-36 bar figure. Same market,
+different year. The long holding period is a property of that sample, not of
+H1 setup construction, and it should not be cited as a structural fact. The
+mechanism is recorded in `research/test_artifacts/study_swing_timeframes_eurusd_2009.txt`.
+
+Worth knowing and not visible in any figure here: because the target is
+anchored to one bar's range, the holding period in **bars** is roughly
+timeframe-invariant while the holding period in **time** is not. 2.5 M5 bars
+is about 12 minutes; 3.3 D1 bars is about a week. The reports count bars,
+not hours.
 
 All figures are **gross of spread, slippage, and commission**, because the
-export does not carry them. The measured edge is smaller than realistic costs
-by several times, so the net is worse than shown, not better. This is
-therefore not a profitability result in either direction: the study cannot
-say whether the net figure is small-positive or clearly negative. No
-profitability claim is made and none is supported.
+export does not carry them, and Phase 20 established why that cannot be fixed
+headlessly. The measured edge is smaller than realistic costs by several
+times, so the net is worse than shown, not better. This is therefore not a
+profitability result in either direction. No profitability claim is made and
+none is supported.
 
 Remaining limits:
 
-- M5 and H1 only. Nothing here says whether the rules work on H4 or D1.
-- One broker's demo feed, one year.
-- USDJPY exists at H1 only, so its +0.06R rests on 1,403 resolved outcomes
-  and is the one figure here worth re-testing before believing.
+- **The swing timeframes are measured on one market, one year.** EURUSD 2009
+  at M5, H1, H4 and D1. H4 is negative gross (-0.068R) and negative in both
+  walk-forward halves. No other symbol was run at H4 or D1, so this is a
+  statement about EURUSD H4, not about H4.
+- **D1's positive gross figure is in-sample only** (+0.30R in sample against
+  -0.09R out of sample, on 122 resolved outcomes). It is not a result.
+- The 2013 and 2009 studies are **not poolable**; they cover different years.
+- One broker's demo feed per study.
+- **No measured spread exists.** Every cost figure is an assumption, labelled
+  as one. See `TESTING.md` for the probe that establishes this.
 
 ## Producing an export
 
