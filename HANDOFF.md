@@ -153,6 +153,42 @@ The mechanism, recorded without changing anything:
 
 **No threshold was tuned in response to any of this.**
 
+## A fixed 1:2 payoff does not rescue it, and the trap is worth knowing
+
+A reader's most likely next step is to ask what happens with a fixed 1:2
+payoff and 0.5% account risk, so `research/pab_fixed_rr.py` answers it
+directly. It replaces only the target with `entry +/- 2 * risk`, keeps the
+engine's own stop, and re-simulates. Research-only, labelled as such.
+
+The number that matters is the **win rate**, because 1:2 breaks even at 33.3%
+and the engine's own R:R delivers about 47%:
+
+| | engine's own R:R | 1:2 win rate | 1:2 gross R | balance, no cost | at 0.001% spread |
+| --- | --- | --- | --- | --- | --- |
+| M5 | 47.7% | 34.1% | +0.022 | +64.5%, DD 58% | **-79.5%** |
+| H1 | 47.6% | 32.8% | -0.017 | +4.7%, DD 19% | +1.0% |
+| H4 | 42.6% | 30.6% | -0.082 | -10.0%, DD 15% | -10.5% |
+| D1 | 48.4% | 33.1% | -0.008 | +2.9% on 42 trades | +2.9% |
+
+**Reusing the 47.7% in a 1:2 formula claims +0.43R and is wrong.** Widening the
+target from ~1.7R to 2R means fewer targets are reached, and the win rate a 1:2
+target actually produces is 34.1%. The shortcut overstates by +0.41R to
++0.46R, and it overstates in the profitable direction every time.
+
+The 1:2 win rate lands between 30.6% and 34.1% on **every** timeframe from M5
+to D1, essentially on the 33.3% the payoff needs. That regularity is the real
+result: at 1:2 the engine is very nearly a fair coin with a 2:1 bet, and the
+near-zero gross expectancy is structural rather than noisy.
+
+The M5 +64.5% is not a result and must never be quoted alone. It assumes
+trading is free. At 0.001% of price - below any retail FX spread - the same
+curve is **-79.5%**, and at 0.005% it is a total wipeout. The per-trade edge
+is +0.014R while that same 0.001% spread costs 0.0156R, so cost is about
+**twice** the edge. That is Phase 19's result expressed as an account curve.
+The 58% drawdown is a second, independent reason not to read the gross figure
+as an outcome. Archived at
+`research/test_artifacts/fixed_rr_0p5pct_eurusd_2009.txt`.
+
 ## Why the swing study is one market and one year
 
 Widening to all four symbols at H4 and D1 hit a platform limitation that is

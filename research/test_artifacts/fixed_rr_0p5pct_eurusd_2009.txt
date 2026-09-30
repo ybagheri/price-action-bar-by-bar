@@ -1,0 +1,124 @@
+PriceActionBarByBar - FIXED 1:2 payoff at 0.5% account risk, EURUSD 2009
+Phase 20 follow-up, produced by research/pab_fixed_rr.py.
+
+A RESEARCH-ONLY sensitivity analysis, and labelled as one. It is NOT a
+canonical measurement and NOT a profitability claim. The engine places no
+orders; neither does this.
+
+WHY IT EXISTS. The engine sets its own levels: a baseline target of
+entry +/- 2.0 * bar.range, a clamp toward context support/resistance, and a
+gate rejecting anything below 1.50 reward/risk. So R:R in an export is
+VARIABLE, and the win rate that goes with it is not reusable at a different
+payoff. The most likely misuse of this project's numbers is exactly that:
+take the 47.7% M5 win rate and multiply it by a 2:1 payoff.
+
+METHOD. Only the TARGET is replaced, with entry +/- 2 * risk. The stop is the
+engine's own invalidation, unchanged, and R is defined by the stop distance,
+the same definition TradingCost.mqh uses. Exits are re-simulated from the
+exported bars. Two concurrency policies are reported because they are not the
+same experiment: 'every event' is the report's per-event expectancy and is not
+an account, while 'one position at a time' is the only one of the two that is a
+real balance curve.
+
+CAVEATS, all of which matter more than the headline:
+  - Every net figure uses an ASSUMED round-trip spread, supplied here. No
+    measured spread exists; the Strategy Tester exposes none (error 4807).
+  - Slippage and commission are excluded, so a real cost is larger still.
+  - The bar export carries no close price, so an expired trade cannot be
+    valued exactly. Expiries are counted per timeframe above.
+  - One market, one year, one broker, 2009.
+  - The 'one at a time' filter selects a different subset than the resolved
+    set, so its win rate differs from the headline figure. Both are shown.
+PriceActionBarByBar - FIXED 1:2 payoff with 0.5% account risk, EURUSD 2009
+RESEARCH-ONLY sensitivity analysis. Not a canonical measurement, not a trading
+system, and not a profitability claim. The canonical figures are in
+research/test_artifacts/study_swing_timeframes_eurusd_2009.txt.
+
+
+==========================================================================
+EURUSD 2009  M5   fixed 1:2, risk 0.5% of balance
+==========================================================================
+signals (non no_trade)  31804
+  target 10538  stop 20401  ambiguous 833  expired 6  timeout 26
+resolved (target+stop)  30939
+win rate                34.1%  at a 1:2 payoff the break-even win rate is 33.3%
+gross expectancy        +0.022R   GROSS, before any cost
+mean bars to exit       4.6 bars (0.4 hours)
+
+-- one position at a time --
+  GROSS (no cost assumed)            trades  10647  win  33.8%  final   1.6451x (+64.5%)  maxDD  58.1%
+  sum of R over taken trades            +0.014R
+  assumed spread 0.001% of price     trades  10647  win  33.8%  final   0.2048x (-79.5%)  maxDD  83.2%
+  assumed spread 0.005% of price     trades  10647  win  33.8%  final   0.0000x (-100.0%)  maxDD 100.0%
+
+-- the shortcut this script exists to prevent --
+  the engine's own R:R gave a 47.7% win rate; plugging that
+  into a 1:2 payoff claims            +0.431R
+  a 1:2 target actually achieves      +0.022R (34.1% win rate)
+  overstatement if anyone reports it  +0.409R
+
+==========================================================================
+EURUSD 2009  H1   fixed 1:2, risk 0.5% of balance
+==========================================================================
+signals (non no_trade)  2716
+  target 864  stop 1774  ambiguous 69  expired 8  timeout 1
+resolved (target+stop)  2638
+win rate                32.8%  at a 1:2 payoff the break-even win rate is 33.3%
+gross expectancy        -0.017R   GROSS, before any cost
+mean bars to exit       5.4 bars (5.4 hours)
+
+-- one position at a time --
+  GROSS (no cost assumed)            trades    767  win  33.9%  final   1.0468x (+4.7%)  maxDD  18.6%
+  sum of R over taken trades            +0.017R
+  assumed spread 0.001% of price     trades    767  win  33.9%  final   1.0103x (+1.0%)  maxDD  19.6%
+  assumed spread 0.005% of price     trades    767  win  33.9%  final   0.8766x (-12.3%)  maxDD  23.6%
+
+-- the shortcut this script exists to prevent --
+  the engine's own R:R gave a 47.6% win rate; plugging that
+  into a 1:2 payoff claims            +0.428R
+  a 1:2 target actually achieves      -0.017R (32.8% win rate)
+  overstatement if anyone reports it  +0.445R
+
+==========================================================================
+EURUSD 2009  H4   fixed 1:2, risk 0.5% of balance
+==========================================================================
+signals (non no_trade)  687
+  target 199  stop 451  ambiguous 25  expired 12  timeout 0
+resolved (target+stop)  650
+win rate                30.6%  at a 1:2 payoff the break-even win rate is 33.3%
+gross expectancy        -0.082R   GROSS, before any cost
+mean bars to exit       4.4 bars (17.6 hours)
+
+-- one position at a time --
+  GROSS (no cost assumed)            trades    245  win  30.6%  final   0.8996x (-10.0%)  maxDD  14.6%
+  sum of R over taken trades            -0.082R
+  assumed spread 0.001% of price     trades    245  win  30.6%  final   0.8947x (-10.5%)  maxDD  14.9%
+  assumed spread 0.005% of price     trades    245  win  30.6%  final   0.8754x (-12.5%)  maxDD  16.2%
+
+-- the shortcut this script exists to prevent --
+  the engine's own R:R gave a 42.6% win rate; plugging that
+  into a 1:2 payoff claims            +0.278R
+  a 1:2 target actually achieves      -0.082R (30.6% win rate)
+  overstatement if anyone reports it  +0.360R
+
+==========================================================================
+EURUSD 2009  D1   fixed 1:2, risk 0.5% of balance
+==========================================================================
+signals (non no_trade)  128
+  target 40  stop 81  ambiguous 0  expired 7  timeout 0
+resolved (target+stop)  121
+win rate                33.1%  at a 1:2 payoff the break-even win rate is 33.3%
+gross expectancy        -0.008R   GROSS, before any cost
+mean bars to exit       6.0 bars (143.6 hours)
+
+-- one position at a time --
+  GROSS (no cost assumed)            trades     42  win  38.1%  final   1.0293x (+2.9%)  maxDD   3.5%
+  sum of R over taken trades            +0.143R
+  assumed spread 0.001% of price     trades     42  win  38.1%  final   1.0290x (+2.9%)  maxDD   3.5%
+  assumed spread 0.005% of price     trades     42  win  38.1%  final   1.0277x (+2.8%)  maxDD   3.5%
+
+-- the shortcut this script exists to prevent --
+  the engine's own R:R gave a 48.4% win rate; plugging that
+  into a 1:2 payoff claims            +0.452R
+  a 1:2 target actually achieves      -0.008R (33.1% win rate)
+  overstatement if anyone reports it  +0.460R

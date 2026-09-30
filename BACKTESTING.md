@@ -177,6 +177,45 @@ timeframe-invariant while the holding period in **time** is not. 2.5 M5 bars
 is about 12 minutes; 3.3 D1 bars is about a week. The reports count bars,
 not hours.
 
+### What a fixed 1:2 payoff does, and the trap in it
+
+`research/pab_fixed_rr.py` replaces only the target, with `entry +/- 2 *
+risk`, and re-simulates the exits. EURUSD 2009, risk 0.5% of balance, one
+position at a time. This is a **research-only** sensitivity analysis, not a
+canonical measurement and not a trading system.
+
+| | engine's own R:R | 1:2 payoff | 1:2 win rate | 1:2 gross R | balance, no cost | balance at 0.001% |
+| --- | --- | --- | --- | --- | --- | --- |
+| M5 | 47.7% | 1:2 | 34.1% | +0.022 | +64.5%, DD 58% | **-79.5%** |
+| H1 | 47.6% | 1:2 | 32.8% | -0.017 | +4.7%, DD 19% | +1.0% |
+| H4 | 42.6% | 1:2 | 30.6% | -0.082 | -10.0%, DD 15% | -10.5% |
+| D1 | 48.4% | 1:2 | 33.1% | -0.008 | +2.9% on 42 trades | +2.9% |
+
+**The trap.** A 1:2 payoff breaks even at a 33.3% win rate, and the engine's
+own R:R delivers about 47%. Reusing that 47% in a 1:2 formula claims
+**+0.43R**. Widening the target from ~1.7R to 2R means fewer targets are
+reached, and the win rate that a 1:2 target *actually* produces is **34.1%**,
+not 47.7%. The shortcut overstates by **+0.41R to +0.46R** depending on the
+timeframe, and it overstates in the profitable direction every time.
+
+**The regularity is the real finding.** The 1:2 win rate lands between 30.6%
+and 34.1% on every timeframe from M5 to D1 - almost exactly the 33.3% the
+payoff needs. So the engine is, at 1:2, very nearly a fair coin with a 2:1
+bet, and gross expectancy is around zero for a structural reason rather than
+a noisy one.
+
+**And the M5 +64.5% is not a result.** It assumes trading is free, which is
+the one assumption this project has spent two phases refusing to make. At a
+thousandth of a percent of price - below any retail FX spread - the same
+curve is **-79.5%**, and at half a thousandth it is a total wipeout. The
+per-trade edge is +0.014R while the same 0.001% spread costs 0.0156R, so cost
+is roughly **twice** the edge. That is Phase 19's finding expressed as an
+account curve, and it is the same answer. The 58% drawdown is a second,
+independent reason not to read the gross figure as an outcome.
+
+Archived at
+`research/test_artifacts/fixed_rr_0p5pct_eurusd_2009.txt`.
+
 All figures are **gross of spread, slippage, and commission**, because the
 export does not carry them, and Phase 20 established why that cannot be fixed
 headlessly. The measured edge is smaller than realistic costs by several
