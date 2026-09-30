@@ -216,6 +216,46 @@ independent reason not to read the gross figure as an outcome.
 Archived at
 `research/test_artifacts/fixed_rr_0p5pct_eurusd_2009.txt`.
 
+### How big an edge would be needed, and could this data even see it
+
+`research/pab_hurdle.py` answers the measurement question, using the
+canonical loaders and the canonical outcome rule so its expectancy **is** the
+project's expectancy. EURUSD 2009:
+
+| | resolved | gross R | 95% CI | SE of the mean | edge needed for 0.001% |
+| --- | --- | --- | --- | --- | --- |
+| M5 | 31,799 | +0.0030 | -0.012 .. +0.018 | 0.0077 | +0.0217 (**7.2x**) |
+| H1 | 2,708 | +0.0347 | -0.026 .. +0.095 | 0.0309 | +0.0058 |
+| H4 | 678 | -0.0685 | -0.166 .. +0.029 | 0.0495 | +0.0029 |
+| D1 | 122 | +0.1150 | -0.126 .. +0.356 | 0.1228 | +0.0010 |
+
+Two things follow, and both are about measurement rather than about any
+configuration.
+
+**M5 needs roughly a 7x better signal.** That is not a threshold adjustment.
+Moving a quality or risk/reward gate changes the edge by amounts comparable to
+the noise, not by seven times its size.
+
+**Zero is inside every interval except H4's, and H4 is the one that is clearly
+negative.** H1's +0.0347R and D1's +0.1150R are not distinguishable from a coin
+at the sample sizes available. D1 rests on 122 resolved outcomes with a
+half-width of 0.24R, which is wider than its own estimate.
+
+**And the trap, quantified.** If the true edge is zero, the best of N noisy
+estimates lands about `z * SE` above zero, and `z` grows with `log(N)`:
+
+| tries | M5 | H1 / H4 / D1 |
+| --- | --- | --- |
+| 10 | +0.013R (does not clear) | +0.051R to +0.081R (**clears**) |
+| 100 | +0.020R (does not clear) | +0.080R to +0.127R (clears) |
+| 500 | +0.024R (**clears**) | +0.096R to +0.153R (clears) |
+
+So on **H1, H4 and D1, ten parameter combinations are enough** to manufacture a
+configuration that appears to beat a realistic cost while being pure selection
+noise. On M5 it takes roughly 500 - an entirely plausible amount of threshold
+tuning. This is the arithmetic behind the project's refusal to tune, and it is
+the single most useful thing here for anyone tempted to try.
+
 All figures are **gross of spread, slippage, and commission**, because the
 export does not carry them, and Phase 20 established why that cannot be fixed
 headlessly. The measured edge is smaller than realistic costs by several

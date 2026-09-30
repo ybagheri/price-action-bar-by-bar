@@ -1,0 +1,149 @@
+The point of this run is the LAST table in each block. Assuming the truth is a
+zero edge, the best of N noisy estimates lands about z*SE above zero, and z
+grows with log(N). That is how many parameter combinations it would take for a
+search to produce a configuration that APPEARS to clear a realistic cost while
+being pure selection noise.
+
+On M5 that number is around 500 tries, which is an entirely plausible amount
+of threshold tuning. On H1, H4 and D1 it is about 10 tries. Anyone who tunes ten
+configurations on a 2,708-outcome sample will find one that looks profitable,
+and it will mean nothing.
+
+The 95% confidence intervals matter for the same reason. On H1 the measured
++0.0347R sits inside -0.026R..+0.095R. On D1 the +0.1150R sits inside
+-0.126R..+0.356R, on 122 resolved outcomes. Neither is distinguishable from a
+coin at the sample sizes available.
+PriceActionBarByBar - THE HURDLE, not a strategy
+Phase 20 follow-up, produced by research/pab_hurdle.py. EURUSD 2009, all four
+timeframes. Uses the canonical loaders and the canonical outcome rule, so the
+expectancy printed here IS the project's expectancy, not a near miss.
+
+RESEARCH-ONLY. It answers a question about measurement power, not about any
+configuration. No profitability claim, and nothing here is a strategy.
+
+Every spread below is ASSUMED and labelled as such. No measured spread exists.
+
+
+==========================================================================
+EURUSD 2009  M5   the hurdle, not a strategy
+==========================================================================
+resolved outcomes            31799
+win rate                     47.7%
+mean R on a win              +1.026R   (the engine's own payoff)
+gross expectancy             +0.0030R
+standard deviation of R      1.377
+standard error of the mean   0.0077R
+95% confidence interval      -0.0121R .. +0.0181R   (half-width 0.0151R)
+mean stop distance           0.00064   mean price 1.39400
+
+-- edge required to beat an ASSUMED round-trip spread (spread only) --
+  0.0005% of price -> +0.0108R per trade   (  0.7x the 95% noise half-width, inside the noise)
+  0.0010% of price -> +0.0217R per trade   (  1.4x the 95% noise half-width, marginal)
+  0.0050% of price -> +0.1083R per trade   (  7.2x the 95% noise half-width, outside the noise)
+
+-- how big must the edge be to matter? --
+  clearing a 0.0010% spread needs 0.0217R per trade.
+  the measured edge is +0.0030R
+  -> about 7.2x improvement needed. That is a signal quality problem,
+     not a threshold problem.
+
+-- how many parameter tries before a search 'finds' an edge --
+  (assuming the truth is zero edge, so any apparent gain is pure selection)
+     10 tries: best-of-N lands near +0.0127R (z=1.64) -- still does not clear it
+     50 tries: best-of-N lands near +0.0180R (z=2.33) -- still does not clear it
+    100 tries: best-of-N lands near +0.0199R (z=2.58) -- still does not clear it
+    500 tries: best-of-N lands near +0.0239R (z=3.09) -- clears a 0.001% cost
+   1000 tries: best-of-N lands near +0.0254R (z=3.29) -- clears a 0.001% cost
+
+==========================================================================
+EURUSD 2009  H1   the hurdle, not a strategy
+==========================================================================
+resolved outcomes            2708
+win rate                     47.6%
+mean R on a win              +1.074R   (the engine's own payoff)
+gross expectancy             +0.0347R
+standard deviation of R      1.609
+standard error of the mean   0.0309R
+95% confidence interval      -0.0259R .. +0.0953R   (half-width 0.0606R)
+mean stop distance           0.00242   mean price 1.39320
+
+-- edge required to beat an ASSUMED round-trip spread (spread only) --
+  0.0005% of price -> +0.0029R per trade   (  0.0x the 95% noise half-width, inside the noise)
+  0.0010% of price -> +0.0058R per trade   (  0.1x the 95% noise half-width, inside the noise)
+  0.0050% of price -> +0.0288R per trade   (  0.5x the 95% noise half-width, inside the noise)
+
+-- how big must the edge be to matter? --
+  clearing a 0.0010% spread needs 0.0058R per trade.
+  the measured edge is +0.0347R
+  -> about 0.2x improvement needed. That is a signal quality problem,
+     not a threshold problem.
+
+-- how many parameter tries before a search 'finds' an edge --
+  (assuming the truth is zero edge, so any apparent gain is pure selection)
+     10 tries: best-of-N lands near +0.0509R (z=1.64) -- clears a 0.001% cost
+     50 tries: best-of-N lands near +0.0719R (z=2.33) -- clears a 0.001% cost
+    100 tries: best-of-N lands near +0.0796R (z=2.58) -- clears a 0.001% cost
+    500 tries: best-of-N lands near +0.0955R (z=3.09) -- clears a 0.001% cost
+   1000 tries: best-of-N lands near +0.1017R (z=3.29) -- clears a 0.001% cost
+
+==========================================================================
+EURUSD 2009  H4   the hurdle, not a strategy
+==========================================================================
+resolved outcomes            678
+win rate                     42.6%
+mean R on a win              +1.082R   (the engine's own payoff)
+gross expectancy             -0.0685R
+standard deviation of R      1.288
+standard error of the mean   0.0495R
+95% confidence interval      -0.1655R .. +0.0285R   (half-width 0.0970R)
+mean stop distance           0.00488   mean price 1.39533
+
+-- edge required to beat an ASSUMED round-trip spread (spread only) --
+  0.0005% of price -> +0.0014R per trade   (  0.0x the 95% noise half-width, inside the noise)
+  0.0010% of price -> +0.0029R per trade   (  0.0x the 95% noise half-width, inside the noise)
+  0.0050% of price -> +0.0143R per trade   (  0.1x the 95% noise half-width, inside the noise)
+
+-- how big must the edge be to matter? --
+  clearing a 0.0010% spread needs 0.0029R per trade.
+  the measured edge is -0.0685R
+  -> the edge is NEGATIVE, so there is no multiple: the first requirement
+     is to get it above zero at all, before cost is even considered.
+
+-- how many parameter tries before a search 'finds' an edge --
+  (assuming the truth is zero edge, so any apparent gain is pure selection)
+     10 tries: best-of-N lands near +0.0814R (z=1.64) -- clears a 0.001% cost
+     50 tries: best-of-N lands near +0.1151R (z=2.33) -- clears a 0.001% cost
+    100 tries: best-of-N lands near +0.1274R (z=2.58) -- clears a 0.001% cost
+    500 tries: best-of-N lands near +0.1529R (z=3.09) -- clears a 0.001% cost
+   1000 tries: best-of-N lands near +0.1628R (z=3.29) -- clears a 0.001% cost
+
+==========================================================================
+EURUSD 2009  D1   the hurdle, not a strategy
+==========================================================================
+resolved outcomes            122
+win rate                     48.4%
+mean R on a win              +1.272R   (the engine's own payoff)
+gross expectancy             +0.1150R
+standard deviation of R      1.357
+standard error of the mean   0.1228R
+95% confidence interval      -0.1258R .. +0.3558R   (half-width 0.2408R)
+mean stop distance           0.01407   mean price 1.40411
+
+-- edge required to beat an ASSUMED round-trip spread (spread only) --
+  0.0005% of price -> +0.0005R per trade   (  0.0x the 95% noise half-width, inside the noise)
+  0.0010% of price -> +0.0010R per trade   (  0.0x the 95% noise half-width, inside the noise)
+  0.0050% of price -> +0.0050R per trade   (  0.0x the 95% noise half-width, inside the noise)
+
+-- how big must the edge be to matter? --
+  clearing a 0.0010% spread needs 0.0010R per trade.
+  the measured edge is +0.1150R
+  -> about 0.0x improvement needed. That is a signal quality problem,
+     not a threshold problem.
+
+-- how many parameter tries before a search 'finds' an edge --
+  (assuming the truth is zero edge, so any apparent gain is pure selection)
+     10 tries: best-of-N lands near +0.2020R (z=1.64) -- clears a 0.001% cost
+     50 tries: best-of-N lands near +0.2858R (z=2.33) -- clears a 0.001% cost
+    100 tries: best-of-N lands near +0.3164R (z=2.58) -- clears a 0.001% cost
+    500 tries: best-of-N lands near +0.3796R (z=3.09) -- clears a 0.001% cost
+   1000 tries: best-of-N lands near +0.4042R (z=3.29) -- clears a 0.001% cost
