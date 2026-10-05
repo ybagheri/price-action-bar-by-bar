@@ -95,14 +95,27 @@ Current state, verified evidence, and open gaps are summarised in
   the 2013 sample, not of H1 setup construction, and should not be cited as
   a structural fact. The mechanism is recorded (no maximum holding horizon;
   target anchored to one bar's range), and nothing was tuned.
+- **Phase 21 — lifecycle integration test groups added to the shared
+  harness.** `TestEnginePipeline` drives `CPabEngine` end-to-end: the
+  closed-bar gate (index 0 never enters the pipeline), a decision stamped
+  on the newest CLOSED bar, duplicate-tick idempotence, and
+  history-reload determinism (a second engine fed the same bars
+  reproduces the same decision). `TestRendererLifecycle` drives the
+  chart-object lifecycle: stable keys, no duplication on redraw, NO TRADE
+  leaking no entry/stop/target lines, and `ClearAll` removing everything.
+  **Not yet executed**: this phase was authored on a machine with no
+  MetaEditor, so the 84-assertion verdict in
+  `research/test_artifacts/mql5_harness_20260930.txt` remains the last
+  *run* evidence. Executing the harness is the immediate next step.
 
 ## Next
 
-1. **Indicator lifecycle integration tests.** Promoted to first, because it is
-   the one remaining gap that does not depend on broker data. The harness
-   covers the analyzer classes; it does not reach `CPabEngine`, `OnCalculate`
-   or the chart renderer, and duplicate ticks and history reload have no
-   runtime coverage at all.
+1. **Execute the Phase 21 lifecycle groups headlessly** and archive the
+   verdict, as every other group was. This needs MetaEditor and the
+   Strategy Tester, which the machine that authored Phase 21 does not
+   have; the group code is committed and the recipe is in `TESTING.md`.
+   Expected gain: ~30 assertions over the current 84, covering
+   `CPabEngine`, duplicate ticks, history reload, and the renderer.
 2. **Widen the swing study past one market.** Blocked on which years the
    tester agent can serve per symbol and timeframe, not on code. The agent
    holds about one year per timeframe and *which* year drifts between runs,

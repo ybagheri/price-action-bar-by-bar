@@ -2,6 +2,17 @@
 
 ### Added
 
+- **Phase 21: lifecycle integration test groups** in the shared
+  MQL5 harness. `TestEnginePipeline` drives `CPabEngine`
+  end-to-end (closed-bar gate, decision stamped on the newest
+  closed bar, duplicate-tick idempotence, history-reload
+  determinism); `TestRendererLifecycle` drives the chart-object
+  lifecycle (stable keys, no duplication on redraw, NO TRADE
+  leaking no levels, `ClearAll`). The harness now includes
+  `PabEngine.mqh` and `ChartRenderer.mqh`. Authored on a machine
+  with no MetaEditor, so these groups are **not yet executed**;
+  the last run evidence remains 84 passed, 0 failed
+  (`research/test_artifacts/mql5_harness_20260930.txt`).
 - Closed-bar-only MQL5 processing with timestamp-idempotent analyzers.
 - Bar wick, overlap, range, strength, run, reversal, and follow-through features.
 - Micro/medium context snapshot with pressure, levels, and failed-breakout heuristics.

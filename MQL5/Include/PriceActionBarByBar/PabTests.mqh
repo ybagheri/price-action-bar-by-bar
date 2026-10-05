@@ -14,9 +14,12 @@
 //| test suite drift, and a suite that only runs when someone remembers|
 //| is not a regression suite.                                       |
 //|                                                                    |
-//| These are unit tests over the analyzer classes, not over the      |
-//| orchestrator. They do not cover CPabEngine, the indicator, or the |
-//| export; see the gaps listed in HANDOFF.md.                      |
+//| Phase 21 added the lifecycle groups: TestEnginePipeline drives    |
+//| CPabEngine end-to-end (closed-bar gate, duplicate ticks, history  |
+//| reload determinism) and TestRendererLifecycle drives the chart    |
+//| object lifecycle. What remains uncovered is the indicator's own   |
+//| OnCalculate bookkeeping and the export EA's file writing; those   |
+//| are MT5-lifecycle code paths, listed as gaps in HANDOFF.md.      |
 //+------------------------------------------------------------------+
 #property strict
 
@@ -31,6 +34,12 @@
 #include "MeasuredMoveDetector.mqh"
 #include "ContextAnalyzer.mqh"
 #include "DecisionEngine.mqh"
+// Phase 21: the lifecycle groups drive the pipeline as a whole and
+// the chart object lifecycle, so they need the orchestrator and the
+// renderer. Both headers only define their own class and include the
+// analyzer headers already listed above, so nothing is pulled in twice.
+#include "PabEngine.mqh"
+#include "ChartRenderer.mqh"
 
 int g_pass = 0;
 int g_fail = 0;
@@ -893,6 +902,249 @@ void TestTradingCost()
 
 
 //+------------------------------------------------------------------+
+//| PHASE 21. The engine configuration the harness uses. The values  |
+//| mirror BuildEngineConfig() in PriceActionBarByBar.mq5, spelled   |
+//| out because a test has no inputs. BuildSeries spaces its bars    |
+//| one hour apart, so secondsPerBar is 3600: the pattern slopes the |
+//| engine computes inside a pipeline run are only meaningful if the |
+//| seconds-per-bar matches the fixture's real spacing.              |
+//+------------------------------------------------------------------+
+void DefaultEngineConfig(SEngineConfig &cfg)
+  {
+   cfg.dojiBodyRatio      = 0.30;
+   cfg.clvFavorableMin    = 0.15;
+   cfg.featureLookback    = 20;
+   cfg.largeRangeMult     = 1.50;
+   cfg.smallRangeMult     = 0.70;
+   cfg.strongBodyRatio    = 0.60;
+   cfg.historyCapacity    = 2000;
+   cfg.breakoutLookback   = 10;
+   cfg.breakoutClvMin     = 0.50;
+   cfg.climaxLookback     = 20;
+   cfg.climaxRangeMult    = 2.0;
+   cfg.climaxBodyRatioMax = 0.35;
+   cfg.fractalLegs        = 2;
+   cfg.swingCapacity      = 500;
+   cfg.regimeLookback     = 20;
+   cfg.overlapThreshold   = 0.55;
+   cfg.displaceThreshold  = 3.0;
+   // No ATR series is injected in this harness, so the range
+   // detector's internal average is the normalizer under test.
+   // useRealAtr only matters once RefreshAtr() is called, which
+   // needs a live iATR handle and is deliberately not exercised
+   // here.
+   cfg.useRealAtr         = false;
+   cfg.atrPeriod          = 14;
+   cfg.swingSimilarityPct = 0.0015;  // 0.15 percent
+   cfg.convergenceMin     = 0.00020;
+   cfg.secondsPerBar      = 3600;
+   cfg.minimumQuality     = 55;
+   cfg.minimumRiskReward  = 1.50;
+   cfg.contextBars        = 10;
+  }
+
+//+------------------------------------------------------------------+
+//| PHASE 21. The pipeline as a whole: ProcessBar feeds bars in,   |
+//| Evaluate turns accumulated state into a decision. This is the    |
+//| layer the chart indicator and the historical replay share, so    |
+//| its lifecycle contracts are the ones a real run depends on:      |
+//|                                                                    |
+//|   - index 0 (the forming bar) never enters the pipeline       |
+//|   - a decision is stamped with the newest CLOSED bar            |
+//|   - re-processing a bar (a duplicate tick) is a no-op          |
+//|   - the same bars always produce the same decision, so a        |
+//|     history reload cannot change what the chart already drew     |
+//+------------------------------------------------------------------+
+void TestEnginePipeline()
+  {
+   Print("--- TestEnginePipeline ---");
+
+   // A clean bull leg with an H2 pullback, OLDEST FIRST, routed
+   // through BuildSeries so the arrays land in series order
+   // (index 0 = newest) exactly as OnCalculate receives them.
+   double o[] = {1.1000, 1.1020, 1.1040, 1.1055, 1.1050, 1.1052, 1.1070};
+   double h[] = {1.1022, 1.1042, 1.1057, 1.1058, 1.1053, 1.1055, 1.1090};
+   double l[] = {1.0998, 1.1018, 1.1038, 1.1045, 1.1044, 1.1048, 1.1069};
+   double c[] = {1.1020, 1.1040, 1.1055, 1.1046, 1.1052, 1.1054, 1.1088};
+
+   datetime time[]; double open[], high[], low[], close[];
+   BuildSeries(o, h, l, c, time, open, high, low, close);
+   int n = ArraySize(open);
+
+   CPabEngine *engine = new CPabEngine();
+   SEngineConfig cfg;
+   DefaultEngineConfig(cfg);
+   Check(engine.Init(cfg, "EURUSD", PERIOD_H1),
+         "CPabEngine.Init allocates the whole analyzer pipeline");
+
+   //--- an engine that has processed nothing has nothing to decide ---
+   SSetupCandidate candidate;
+   Check(!engine.Evaluate(0.0, 0, candidate),
+         "Evaluate on an engine with no processed bar returns false");
+
+   //--- feed CLOSED bars only: index 0 is forming and must never
+   //    enter the pipeline, which is the indicator's closed-bar gate
+   for(int i = n - 1; i >= 1; i--)
+      engine.ProcessBar(i, time, open, high, low, close, n);
+
+   Check(engine.BarCount() == n - 1,
+         "ProcessBar stores every closed bar it is given");
+
+   Check(engine.Evaluate(close[1], time[1], candidate),
+         "Evaluate succeeds once at least one closed bar is processed");
+   Check(candidate.barTime == time[1],
+         "The decision is stamped with the newest CLOSED bar, never the forming bar");
+   Check(engine.Context().valid,
+         "The engine produces a valid context snapshot");
+
+   //--- the levels contract: any live setup keeps its levels strictly
+   //    ordered, whichever direction it points in
+   if(candidate.active && candidate.direction != SETUP_NONE)
+     {
+      if(candidate.direction == SETUP_LONG)
+         Check(candidate.stopPrice < candidate.entryPrice &&
+               candidate.targetPrice > candidate.entryPrice,
+               "A live long setup keeps invalidation < entry < target");
+      else
+         Check(candidate.targetPrice < candidate.entryPrice &&
+               candidate.stopPrice > candidate.entryPrice,
+               "A live short setup keeps target < entry < invalidation");
+     }
+
+   //--- duplicate tick: re-processing the bar that was just processed
+   //    must be a no-op, not a second copy of the same bar
+   int barsBefore = engine.BarCount();
+   engine.ProcessBar(1, time, open, high, low, close, n);
+   Check(engine.BarCount() == barsBefore,
+         "Re-processing the same bar (a duplicate tick) does not duplicate state");
+
+   SSetupCandidate again;
+   engine.Evaluate(close[1], time[1], again);
+   Check(again.entryPrice == candidate.entryPrice &&
+         again.stopPrice == candidate.stopPrice &&
+         again.targetPrice == candidate.targetPrice &&
+         again.qualityScore == candidate.qualityScore &&
+         again.status == candidate.status &&
+         again.type == candidate.type,
+         "A duplicate tick does not change the decision");
+
+   //--- history reload: a second engine built from scratch and fed
+   //    the same bars must produce the same decision, because nothing
+   //    in the pipeline may depend on hidden or run-order state
+   CPabEngine *reloaded = new CPabEngine();
+   Check(reloaded.Init(cfg, "EURUSD", PERIOD_H1),
+         "A second engine inits identically");
+   for(int i = n - 1; i >= 1; i--)
+      reloaded.ProcessBar(i, time, open, high, low, close, n);
+
+   SSetupCandidate reloadedCandidate;
+   Check(reloaded.Evaluate(close[1], time[1], reloadedCandidate),
+         "The reloaded engine evaluates the same bars");
+   Check(reloadedCandidate.entryPrice == candidate.entryPrice &&
+         reloadedCandidate.stopPrice == candidate.stopPrice &&
+         reloadedCandidate.targetPrice == candidate.targetPrice &&
+         reloadedCandidate.qualityScore == candidate.qualityScore &&
+         reloadedCandidate.status == candidate.status &&
+         reloadedCandidate.type == candidate.type &&
+         reloadedCandidate.direction == candidate.direction,
+         "A history reload reproduces the same decision from the same bars");
+
+   delete reloaded;
+   delete engine;
+  }
+
+//+------------------------------------------------------------------+
+//| PHASE 21. The renderer is the only module allowed to touch chart |
+//| objects, so its lifecycle contract is testable on its own: an    |
+//| object is created under a stable key, redrawn by MOVING that     |
+//| key (never by creating a second object), removed when it goes    |
+//| inactive, and ClearAll removes everything on shutdown. The       |
+//| Strategy Tester creates and counts chart objects exactly like a  |
+//| live chart does, which makes this testable headlessly.           |
+//+------------------------------------------------------------------+
+void TestRendererLifecycle()
+  {
+   Print("--- TestRendererLifecycle ---");
+
+   CChartRenderer *renderer = new CChartRenderer(0, "PABTEST");
+   int baseline = ObjectsTotal(0, 0, -1);
+
+   SBarInfo bar;
+   bar.Clear();
+   bar.time = D'2026.01.01 05:00';
+   bar.open = 1.1000;
+   bar.high = 1.1010;
+   bar.low = 1.0990;
+   bar.close = 1.1005;
+   bar.range = 0.0020;
+   bar.bodyRatio = 0.25;
+   bar.clv = 0.75;
+   bar.isBullish = true;
+   bar.barType = BAR_BULL_TREND;
+   bar.strength = STRENGTH_STRONG;
+   bar.pullbackType = PB_H2;
+   bar.signalQuality = QUALITY_STRONG;
+   bar.isBreakoutBar = true;
+   bar.isClimax = true;
+
+   //--- with every visibility flag off, drawing must leave no trace
+   renderer.SetVisibility(false, false, false, false, false, false, false);
+   renderer.DrawBarLabel(bar, 1);
+   renderer.DrawBreakoutMarker(bar);
+   renderer.DrawClimaxMarker(bar);
+   Check(ObjectsTotal(0, 0, -1) == baseline,
+         "Drawing with all visibility off creates no objects");
+   Check(ObjectFind(0, "PABTEST_LBL_" + (string)bar.time) < 0,
+         "A hidden pullback label is not created");
+   Check(ObjectFind(0, "PABTEST_BRK_" + (string)bar.time) < 0,
+         "A hidden breakout marker is not created");
+
+   //--- turning visibility back on creates the objects under stable keys
+   renderer.SetVisibility(true, true, true, true, true, true, true);
+   renderer.DrawBarLabel(bar, 1);
+   renderer.DrawBreakoutMarker(bar);
+   renderer.DrawClimaxMarker(bar);
+   Check(ObjectsTotal(0, 0, -1) > baseline,
+         "Visible drawing creates chart objects");
+   Check(ObjectFind(0, "PABTEST_LBL_" + (string)bar.time) >= 0,
+         "A visible pullback label is created under its stable key");
+   Check(ObjectFind(0, "PABTEST_BRK_" + (string)bar.time) >= 0,
+         "A visible breakout marker is created under its stable key");
+   Check(ObjectFind(0, "PABTEST_CLX_" + (string)bar.time) >= 0,
+         "A visible climax marker is created under its stable key");
+
+   //--- drawing the same bar again must MOVE the existing objects,
+   //    not add a second copy of them
+   renderer.DrawBarLabel(bar, 1);
+   renderer.DrawBreakoutMarker(bar);
+   renderer.DrawClimaxMarker(bar);
+   Check(ObjectsTotal(0, 0, -1) - baseline == 3,
+         "Redrawing the same bar reuses its objects instead of duplicating them");
+
+   //--- a NO TRADE decision still draws its marker, but must not leak
+   //    entry, stop, or target lines that do not exist
+   SSetupCandidate candidate;
+   ZeroMemory(candidate);
+   candidate.barTime = bar.time;
+   candidate.direction = SETUP_NONE;
+   candidate.status = STATUS_NO_TRADE;
+   renderer.DrawSetup(candidate, true, true, false);
+   Check(ObjectFind(0, "PABTEST_SETUP_marker") >= 0,
+         "A NO TRADE decision still draws its marker");
+   Check(ObjectFind(0, "PABTEST_SETUP_entry") < 0 &&
+         ObjectFind(0, "PABTEST_SETUP_stop") < 0 &&
+         ObjectFind(0, "PABTEST_SETUP_target") < 0,
+         "A NO TRADE decision draws no entry, stop, or target lines");
+
+   //--- ClearAll removes every object this renderer created
+   renderer.ClearAll();
+   Check(ObjectsTotal(0, 0, -1) == baseline,
+         "ClearAll removes every object the renderer created");
+
+   delete renderer;
+  }
+
+//+------------------------------------------------------------------+
 //| Runs every group. Entry points call this and then report the    |
 //| counters; they must not run the groups individually, or a new    |
 //| group added here would silently never execute.                   |
@@ -918,5 +1170,7 @@ void RunAllPabTests()
    TestTargetAndNoTradeContract();
    TestFailedBreakoutRequiresAnActualBreakout();
    TestTradingCost();
+   TestEnginePipeline();
+   TestRendererLifecycle();
   }
 
