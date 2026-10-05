@@ -127,6 +127,14 @@ Current state, verified evidence, and open gaps are summarised in
   before the decision is never used), event level-side
   validation, empty/header-only files, and `filter_window`
   bounds. Python suite: 142 passed, 0 failed.
+- **Phase 24 — repository hygiene and CI.** `.gitattributes`
+  normalizes every text file to LF, ending the CRLF churn
+  recorded in `HANDOFF.md`. `.github/workflows/python.yml`
+  runs the research suite and `compileall` on Python
+  3.10/3.11/3.12 on every push and pull request. MQL5 is
+  deliberately excluded from CI — no runner hosts
+  MetaEditor — so its harness evidence still comes from
+  the maintainer's machine.
 
 ## Next
 

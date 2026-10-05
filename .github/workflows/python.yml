@@ -1,0 +1,36 @@
+name: Python research tests
+
+# The MQL5 engine is the canonical implementation and is compiled
+# by MetaEditor on the maintainer's machine; a GitHub runner
+# cannot host MetaEditor, so this workflow covers the offline
+# research layer only. The MQL5 regression harness recipe (both
+# the interactive Script and the headless Strategy-Tester EA)
+# is in TESTING.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run the research test suite
+        run: |
+          cd research
+          python -m pytest -q
+      - name: Byte-compile the research package
+        run: |
+          cd research
+          python -m compileall -q pab_research tests
+      - name: Smoke-test the report entry point
+        run: |
+          cd research
+          python -m pab_research 2>&1 | head -2 || true

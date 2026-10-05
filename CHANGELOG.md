@@ -2,6 +2,15 @@
 
 ### Added
 
+- **Phase 24: repository hygiene and CI.** `.gitattributes`
+  normalizes every text file to LF (`* text=auto eol=lf`),
+  ending the CRLF churn recorded in `HANDOFF.md` (a Windows
+  checkout previously produced a 13,499-line phantom diff).
+  `.github/workflows/python.yml` runs the research test
+  suite and `compileall` on Python 3.10/3.11/3.12 on every
+  push and pull request. MQL5 is deliberately not in CI: no
+  GitHub runner hosts MetaEditor, so the MQL5 harness
+  evidence still comes from the maintainer's machine.
 - **Phase 23: the research layer now rejects corrupt bar
   files instead of measuring against them.** A bar file with
   two rows sharing an `open_time` is a broken export: the

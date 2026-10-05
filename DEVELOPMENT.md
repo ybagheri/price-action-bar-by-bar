@@ -35,6 +35,16 @@ the implicit current directory. See `TESTING.md`.
    the relevant code changes. Both are unattended now; see `TESTING.md`.
 9. Inspect `git status`, `git diff`, and recent log before each commit.
 10. Commit and push coherent phases separately.
+11. Every push to `main` and every pull request runs the Python suite
+    and `compileall` on Python 3.10/3.11/3.12 in GitHub Actions
+    (`.github/workflows/python.yml`). MQL5 cannot run there — no
+    runner hosts MetaEditor — so the MQL5 harness evidence still
+    comes from the maintainer's machine, archived under
+    `research/test_artifacts/`.
+
+Line endings are normalized by `.gitattributes` (`* text=auto
+eol=lf`), so a checkout on any OS produces the same bytes and
+whole-file phantom diffs cannot appear.
 
 ## Evidence discipline
 

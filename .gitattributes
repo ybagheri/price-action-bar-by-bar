@@ -1,0 +1,10 @@
+# One line-ending policy for the whole repository: text files
+# are normalized to LF on commit and checked out as LF.
+#
+# Why this exists: the repo previously had no .gitattributes,
+# so a Windows checkout with core.autocrlf=true rewrote every
+# text file and produced a whole-file diff of 13,499 insertions
+# against 13,499 deletions with zero real changes (recorded in
+# HANDOFF.md, "Environment notes"). One policy here means the
+# worktree never disagrees with the index about line endings.
+* text=auto eol=lf
