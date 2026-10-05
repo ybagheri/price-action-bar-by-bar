@@ -61,11 +61,19 @@ Verified in the current environment:
 - MQL5 regression harness compilation: 0 errors, 0 warnings.
 - MQL5 export EA compilation: 0 errors, 0 warnings.
 - MQL5 regression harness runtime, headless in the Strategy Tester:
-  69 passed, 0 failed. A run no longer needs a human; it writes a
+  84 passed, 0 failed. A run no longer needs a human; it writes a
   machine-readable verdict.
-- Python research tests: 77 passed.
+- Python research tests: 142 passed (`pytest` and `unittest` agree).
 - Python `compileall`: passed.
+- Every push and pull request re-runs the Python suite and
+  `compileall` on Python 3.10/3.11/3.12 in GitHub Actions.
 - Real headless historical export: 242,473 events across 4 markets and 2 timeframes.
+
+The harness also carries two lifecycle groups added in Phase 21
+(engine pipeline: closed-bar gate, duplicate ticks, history-reload
+determinism; chart-object lifecycle). They were authored on a machine
+with no MetaEditor and are **not yet executed**; the 84/0 figure above
+is the last run evidence. Running the harness is the top roadmap item.
 
 No profitability backtest is claimed. See `TESTING.md` and `BACKTESTING.md`.
 

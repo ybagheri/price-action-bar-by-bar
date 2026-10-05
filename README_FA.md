@@ -618,7 +618,7 @@ Navigator → Scripts → PAB_UnitTests
 5. نتیجه را در تب Experts یا Journal بررسی کنید.
 6. اگر FAIL مشاهده شد، متن کامل خطا را ثبت و بررسی کنید.
 
-تست‌ها شامل موارد زیر هستند:
+تست‌ها شامل ۱۷ گروه هستند:
 
 - طبقه‌بندی Bar
 - Inside Bar
@@ -626,6 +626,7 @@ Navigator → Scripts → PAB_UnitTests
 - Swing
 - Trading Range
 - Pattern
+- شیب نرمال‌شده الگو
 - Breakout و Climax
 - Always-In
 - Measured Move
@@ -633,10 +634,17 @@ Navigator → Scripts → PAB_UnitTests
 - پاک‌سازی Range در Transition
 - Context و Setup
 - وضعیت NO TRADE
+- تعریف Failed Breakout
+- هزینه اجرا
+- چرخه عمر موتور (Phase 21: گیت بار بسته، تیک تکراری، تعیین‌منطقی بازخوانی تاریخچه) و چرخه عمر اشیاء چارت (کلیدهای پایدار، بدون تکرار در بازرسم، ClearAll)
 
 کامپایل موفق به معنی پاس‌شدن همه Assertionهای Runtime نیست؛ نتیجه واقعی باید از Journal تأیید شود.
 
-آخرین اجرای تأییدشده: **41 پاس، 0 fail** روی Alpari MT5_2 و چارت EURUSD M5 در تاریخ 2026-09-28. خروجی خام در `research/test_artifacts/mql5_harness_20260928.txt` بایگانی شده است.
+دو راه اجرا هست و هر دو به یک `RunAllPabTests()` می‌رسند: اسکریپت بالا (تفاعلی)، و `Experts/PAB_HarnessEA.mq5` که در Strategy Tester **بدون حاضر شدن انسان** اجرا می‌شود و یک فایل `pab_harness.txt` قابل‌خواندن‌دستگاه می‌نویسد (رسخت‌ترین راه برای مدرک). دستور کاری و مسیر آن در `TESTING.md` است.
+
+آخرین اجرای تأییدشده (headless در Strategy Tester): **84 پاس، 0 fail** روی Alpari MT5_3 بیلد 6230 در تاریخ 2026-09-29. خروجی خام در `research/test_artifacts/mql5_harness_20260929_cost.txt` بایگانی شده است.
+
+**دو گروه چرخه‌عمرِ Phase 21 (`TestEnginePipeline`، `TestRendererLifecycle`) در کد هستند ولی هنوز اجرا نشده‌اند** — روی ماشینی نوشته شدند که MetaEditor ندارد، پس رقم 84/0 بالا هنوز آخرین مدرک *اجرا* است. اجرای هارنس، اولین آیتم ROADMAP است.
 
 ### تست Python
 
@@ -646,6 +654,14 @@ Navigator → Scripts → PAB_UnitTests
 cd D:\Projects\price-action-bar-by-bar\research
 python -m unittest discover -s tests -v
 ```
+
+یا:
+
+```powershell
+python -m pytest -q
+```
+
+آخرین اجرا: **142 پاس، 0 fail** (`pytest` و `unittest` یکسان). هر push و pull request این دو و همچنین `compileall` را روی Python 3.10/3.11/3.12 در GitHub Actions اجرا می‌کند (`.github/workflows/python.yml`).
 
 برای بررسی Syntax:
 

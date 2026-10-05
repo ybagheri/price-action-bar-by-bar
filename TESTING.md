@@ -91,25 +91,35 @@ the same reason, and `testpaths` in `pyproject.toml` means bare
 - MQL5 harness runtime, **headless**: 84 passed, 0 failed (Alpari MT5_3 build
   6230, 2026-09-29). Archived at
   `research/test_artifacts/mql5_harness_20260929_cost.txt`.
-- Python tests: 124 passed, `pytest` and `unittest` agree.
+- Python tests: 142 passed, `pytest` and `unittest` agree.
 - Python syntax compilation: passed.
 - Costed multi-market export: 319,650 events across 4 markets and 2
   timeframes, all eight combinations measured, 0 excluded for missing bars,
   with break-even and assumed-spread re-pricing. Archived at
   `research/test_artifacts/study_costed_multi_market_2013.txt`.
+- Every push and pull request re-runs the Python suite and `compileall`
+  on Python 3.10/3.11/3.12 in GitHub Actions
+  (`.github/workflows/python.yml`).
 
 Two earlier runs are kept for the record:
 `mql5_harness_20260929_headless.txt` (69/0, before the cost group) and
 `mql5_harness_20260929.txt` (54/0, the interactive run made before the
 pipeline moved into `CPabEngine`). Both are superseded.
 
+**The Phase 21 lifecycle groups (`TestEnginePipeline`,
+`TestRendererLifecycle`) are committed but not yet executed**: they were
+authored on a machine with no MetaEditor, so the 84/0 verdict above is
+still the last *run* evidence. Running the harness is roadmap item 1.
+
 ## MQL5 harness coverage
 
-The suite contains 15 groups covering bar classification, pullback numbering,
+The suite contains 17 groups covering bar classification, pullback numbering,
 swings, range/trend, patterns, normalized pattern slopes, breakout/climax,
 Always-In, measured move, duplicate processing, stale range clearing, context,
-setup composition, the NO TRADE contract, the failed-breakout definition, and
-execution costs.
+setup composition, the NO TRADE contract, the failed-breakout definition,
+execution costs, the engine pipeline lifecycle (closed-bar gate,
+duplicate ticks, history-reload determinism), and the chart-object
+lifecycle (stable keys, no duplication on redraw, `ClearAll`).
 
 ## Running the harness
 

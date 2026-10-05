@@ -1,9 +1,9 @@
-# Handoff Summary - 2026-09-30
+# Handoff Summary - 2026-10-05
 
-State of the repository after Phase 20. The top gap, a measured spread, was
-investigated rather than assumed, and it is blocked on this machine for
-reasons now established with evidence. The next item, the swing timeframes,
-was then measured for the first time, and the answer is a further negative.
+State of the repository after Phase 24. Phases 21-24 added the lifecycle
+test groups (authored, not yet executed), fixed the NinjaTrader port's
+dimensionally-wrong slopes, hardened the research loaders against corrupt
+bar files, and normalized line endings with CI for the Python layer.
 
 ## What this project is
 
@@ -29,14 +29,18 @@ be labelled separately.
 | Spread viability probe | **BLOCKED, with evidence** | `research/test_artifacts/spread_probe_20260930.txt` |
 | Swing-timeframe study | 79,673 events, EURUSD 2009, M5/H1/H4/D1 | `research/test_artifacts/study_swing_timeframes_eurusd_2009.txt` |
 | Costed multi-market study (prior) | 319,650 events, 4 markets, 2 timeframes, 8 combinations | `research/test_artifacts/study_costed_multi_market_2013.txt` |
-| Python tests | 124 passed | `pytest` and `unittest` both agree, 2026-09-30 |
+| Python tests | **142 passed** | `pytest` and `unittest` both agree, 2026-10-05 |
 | Python `compileall` | clean | `research/` |
+| CI (Python) | on every push and PR | `.github/workflows/python.yml` |
 
-**What the harness does not cover.** It exercises the analyzer classes, not
-`CPabEngine`, not `OnCalculate`, and not the chart renderer. The chart path is
-compile-verified and replay-verified but not lifecycle-verified: duplicate
-ticks and history reload remain untested. That is the main remaining gap, and
-Phase 20 did not close it.
+**What the harness does not yet cover, and what Phase 21 changed.** The
+runtime evidence still covers the analyzer classes, not `CPabEngine`, not
+`OnCalculate`, and not the chart renderer. Phase 21 committed two lifecycle
+groups — `TestEnginePipeline` (closed-bar gate, duplicate ticks,
+history-reload determinism) and `TestRendererLifecycle` (stable object keys,
+no duplication on redraw, `ClearAll`) — but they were authored on a machine
+with no MetaEditor and are **not yet executed**. The 84/0 figure above is the
+last *run* evidence. Running the harness is roadmap item 1.
 
 **The environment notes at the end of this file were wrong until Phase 20.**
 They pointed at `C:\Program Files\Alpari MT5_3` and a `BazikadeStore` user.
@@ -44,6 +48,24 @@ On this machine the Alpari terminals are installed under `AppData\Roaming`
 and the user is `bagheri`. `TESTING.md` now carries verified paths. A second
 broker, **Epic Pips MT5 Terminal**, is also installed and unused, which is
 the obvious feed for roadmap item 3.
+
+## Phases 21-24 in brief
+
+- **Phase 21** — lifecycle integration test groups in the shared harness
+  (`MQL5/Include/PriceActionBarByBar/PabTests.mqh`), which now includes
+  `PabEngine.mqh` and `ChartRenderer.mqh`. Committed, not yet executed.
+- **Phase 22** — the NinjaTrader port's pattern slopes are now a fraction of
+  price per bar keyed off swing timestamps
+  (`PabUtils.NormalizedSlopePerBar`), the direct port of the MQL5 fix. The
+  old index-based slope was dimensionally wrong and the triangle branch could
+  never fire on a 1.10 instrument. Not yet compiled (no NT8 SDK here).
+- **Phase 23** — the research layer rejects bar files with duplicated
+  `open_time` (both loaders), and `research/tests/test_loading.py` (18
+  tests) pins that, the look-ahead invariant, event level-side validation,
+  empty/header-only files, and `filter_window` bounds.
+- **Phase 24** — `.gitattributes` (`* text=auto eol=lf`) ends the CRLF churn
+  recorded below; `.github/workflows/python.yml` runs the suite on every
+  push and PR. MQL5 is deliberately absent from CI: no runner hosts MetaEditor.
 
 ## Phase 20: the measured spread is blocked, and now we know why
 
