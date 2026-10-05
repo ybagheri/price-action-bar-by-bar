@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Sequence
 
 Direction = Literal["long", "short", "none"]
 
@@ -249,6 +249,27 @@ def parse_timestamp(value: str) -> datetime:
         raise ValueError(f"unrecognised timestamp {value!r}") from error
 
 
+def _reject_duplicate_timestamps(bars: Sequence[PriceBar], symbol: str) -> None:
+    """A bar file must not carry two bars with the same open time.
+
+    Duplicate timestamps mean a broken export: the evaluator walks
+    each row as a real bar, so a duplicated bar double-counts
+    MFE/MAE and mis-reports bars-to-exit. Corrupt input is
+    rejected loudly rather than measured against quietly, which is
+    the same stance BarBook takes for a market it has no history
+    for. The check lives at the file boundary, because that is
+    where unverified data enters.
+    """
+    seen: set[datetime] = set()
+    for bar in bars:
+        if bar.open_time in seen:
+            raise ValueError(
+                f"duplicate open_time {bar.open_time.isoformat()} "
+                f"in bar history for {symbol!r}"
+            )
+        seen.add(bar.open_time)
+
+
 def load_price_bars_by_symbol(path: str) -> dict[str, list[PriceBar]]:
     """Load bar history grouped by the ``symbol`` column.
 
@@ -274,8 +295,9 @@ def load_price_bars_by_symbol(path: str) -> dict[str, list[PriceBar]]:
                     low=float(row["low"]),
                 )
             )
-    for bars in grouped.values():
+    for symbol, bars in grouped.items():
         bars.sort(key=lambda item: item.open_time)
+        _reject_duplicate_timestamps(bars, symbol)
     return grouped
 
 
@@ -343,4 +365,5 @@ def load_price_bars(path: str) -> list[PriceBar]:
                 )
             )
     bars.sort(key=lambda item: item.open_time)
+    _reject_duplicate_timestamps(bars, "single-market")
     return bars

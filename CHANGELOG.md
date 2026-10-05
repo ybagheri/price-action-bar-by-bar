@@ -2,6 +2,23 @@
 
 ### Added
 
+- **Phase 23: the research layer now rejects corrupt bar
+  files instead of measuring against them.** A bar file with
+  two rows sharing an `open_time` is a broken export: the
+  evaluator walks each row as a real bar, so a duplicated
+  bar double-counts MFE/MAE and mis-reports
+  bars-to-exit. Both bar loaders (`load_price_bars` and
+  `load_price_bars_by_symbol`) now raise a `ValueError`
+  naming the symbol and timestamp. The same instant in two
+  different markets remains legal. New edge-case suite
+  `research/tests/test_loading.py` (18 tests) covers the
+  duplicate cases, the look-ahead invariant (a bar that
+  opens before the decision is never used, even if it would
+  have hit the target), event level-side validation
+  (long: invalidation < entry < target; short: target <
+  entry < invalidation), empty and header-only files,
+  decision-time ordering on load, and `filter_window`
+  bounds. Python suite: 142 passed, 0 failed.
 - **Phase 22: the NinjaTrader port's pattern slopes are now
   normalized.** `PabUtils.NormalizedSlopePerBar` ports
   `CPabUtils::NormalizedSlopePerBar` verbatim: the x-axis is the

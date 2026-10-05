@@ -118,6 +118,15 @@ Current state, verified evidence, and open gaps are summarised in
   seconds-per-bar; non-time-based periods yield 0 and disable
   slope detection. **Not yet compiled** — this machine has no
   NinjaTrader 8 SDK.
+- **Phase 23 — the research layer rejects corrupt bar files
+  instead of measuring against them.** A duplicated `open_time`
+  in a bar file now raises, naming the symbol and timestamp;
+  the same instant in two markets stays legal. New
+  `research/tests/test_loading.py` (18 tests) pins the
+  duplicate cases, the look-ahead invariant (a bar opening
+  before the decision is never used), event level-side
+  validation, empty/header-only files, and `filter_window`
+  bounds. Python suite: 142 passed, 0 failed.
 
 ## Next
 
