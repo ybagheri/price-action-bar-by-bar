@@ -74,8 +74,10 @@ Python must not independently redefine MT5 setups. It validates and measures exp
 - Costs in the export: spread, slippage, and commission, so expectancy can be
   reported net rather than gross.
 - A broader real study: one symbol, one timeframe, one year so far.
-- NinjaTrader compilation/parity fixtures; its slope math still hardcodes
-  adjacent x coordinates and is dimensionally wrong.
+- NinjaTrader compilation/parity fixtures. Its slope math was dimensionally
+  wrong until Phase 22 replaced it with the timestamp-keyed,
+  price-normalized `PabUtils.NormalizedSlopePerBar`; the port still
+  needs a real NinjaTrader 8 compile, which this machine cannot do.
 
 ## Measurement conventions
 

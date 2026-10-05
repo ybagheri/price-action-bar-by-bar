@@ -2,6 +2,23 @@
 
 ### Added
 
+- **Phase 22: the NinjaTrader port's pattern slopes are now
+  normalized.** `PabUtils.NormalizedSlopePerBar` ports
+  `CPabUtils::NormalizedSlopePerBar` verbatim: the x-axis is the
+  swing timestamp (never a series index, which shifts on every new
+  bar and restarts on a history reload) and the y-axis is divided by
+  the reference price, so one convergence threshold is meaningful on
+  EURUSD at 1.10 and on gold at 3400 alike. The old index-based
+  `PabUtils.Slope` produced ~0.0025 per bar on a 1.10 instrument,
+  so a 0.15 threshold could never be met and the triangle branch
+  could never fire — the same defect the MQL5 engine fixed in
+  Phase 14. The indicator now passes the chart's real seconds-per-bar
+  (`ChartSecondsPerBar()`); non-time-based periods (tick, volume,
+  range, renko) yield 0, which disables slope-based detection rather
+  than guessing. The `secondsPerBar` constructor parameter defaults
+  to 300, matching the MQL5 default. **Not yet compiled**: this
+  machine has no NinjaTrader 8 SDK; compilation is the maintainer's
+  next step for this port.
 - **Phase 21: lifecycle integration test groups** in the shared
   MQL5 harness. `TestEnginePipeline` drives `CPabEngine`
   end-to-end (closed-bar gate, decision stamped on the newest

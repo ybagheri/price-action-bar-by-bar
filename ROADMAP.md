@@ -107,6 +107,17 @@ Current state, verified evidence, and open gaps are summarised in
   MetaEditor, so the 84-assertion verdict in
   `research/test_artifacts/mql5_harness_20260930.txt` remains the last
   *run* evidence. Executing the harness is the immediate next step.
+- **Phase 22 — the NinjaTrader port's pattern slopes are
+  normalized.** `PabUtils.NormalizedSlopePerBar` ports
+  `CPabUtils::NormalizedSlopePerBar` (fraction of price per
+  bar, keyed off swing timestamps), so the port's triangle
+  detection uses the same scale-free threshold as the MQL5
+  engine. The old index-based slope was dimensionally wrong
+  and could never fire the triangle branch on a 1.10
+  instrument. The indicator passes the chart's real
+  seconds-per-bar; non-time-based periods yield 0 and disable
+  slope detection. **Not yet compiled** — this machine has no
+  NinjaTrader 8 SDK.
 
 ## Next
 
@@ -134,7 +145,10 @@ Current state, verified evidence, and open gaps are summarised in
    24-34 bar H1 sample would have to be. Do not tune toward either figure.
 6. Implement configurable higher-timeframe context using closed HTF bars.
 7. Add session/prior-day/overnight levels with broker-time assumptions.
-8. Apply the timestamp-normalized slope to the NinjaTrader port and compile it.
+8. ~~Apply the timestamp-normalized slope to the NinjaTrader port.~~
+   Phase 22 applied the fix in code; compiling it still needs the
+   maintainer's NinjaTrader 8 build environment, which this
+   machine lacks.
 
 ## Explicitly deferred
 

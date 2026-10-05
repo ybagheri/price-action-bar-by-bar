@@ -13,6 +13,11 @@ using NinjaTrader.NinjaScript.Indicators;
 
 // =====================================================================
 // PriceActionBarByBar — NinjaTrader 8 (NinjaScript / C#) port, Phase 4.
+// Phase 22: pattern slopes are now a fraction of price per bar,
+// measured off swing timestamps (PabUtils.NormalizedSlopePerBar),
+// matching CPabUtils::NormalizedSlopePerBar in the MQL5 engine.
+// The old index-based Slope() was dimensionally wrong and could
+// never satisfy a convergence threshold on a 1.10 instrument.
 //
 // This is a 1:1 architectural port of the MQL5 project under /MQL5 —
 // same class boundaries, same IAnalyzer-equivalent contract, same
@@ -223,9 +228,39 @@ namespace NinjaTrader.NinjaScript.Indicators
 			return n == 0 ? 0.0 : sum / n;
 		}
 
-		public static double Slope(int x1, double y1, int x2, double y2)
+		// Slope of a price series, normalized so one threshold holds on
+		// any symbol or timeframe — the direct port of
+		// CPabUtils::NormalizedSlopePerBar in PAB_Utils.mqh.
+		//
+		// The x-axis is BAR TIMESTAMP, never an adjacent index: a series
+		// index shifts when a new bar arrives and restarts on a history
+		// reload, so two swings confirmed at different moments would
+		// produce different slopes for the same geometry. Timestamps are
+		// stable. (The old Slope(0, y, 1, y) compared adjacent indexes
+		// and divided by a raw price distance, which is dimensionally
+		// wrong: on a 1.10 instrument that slope is about 0.0025, so a
+		// 0.15-per-bar threshold could never be met and the triangle
+		// branch could never fire.)
+		//
+		// The y-axis is divided by the reference price, so the result is
+		// a dimensionless "fraction of price per bar".
+		//
+		// Sign convention: positive means the series rose as time
+		// advanced, i.e. toward the newer point. t1/y1 is the OLDER
+		// point, t2/y2 the NEWER one. Returns 0.0 when the two points
+		// cannot be separated on the time axis, the reference price is
+		// not positive, or the time axis is unknown (secondsPerBar <= 0,
+		// e.g. tick/volume/range bars), because "no measurable slope"
+		// must never satisfy a convergence threshold.
+		public static double NormalizedSlopePerBar(DateTime t1, double y1, DateTime t2, double y2, int secondsPerBar)
 		{
-			return x1 == x2 ? 0.0 : (y2 - y1) / (double)(x2 - x1);
+			if (secondsPerBar <= 0) return 0.0;
+			double span = (t2 - t1).TotalSeconds;
+			if (span <= 0.0) return 0.0;
+			double barsApart = span / secondsPerBar;
+			if (barsApart < 1.0) return 0.0;
+			if (y1 <= 0.0) return 0.0;
+			return (y2 - y1) / y1 / barsApart;
 		}
 	}
 
@@ -535,11 +570,13 @@ namespace NinjaTrader.NinjaScript.Indicators
 	{
 		private readonly double _similarityPct;
 		private readonly double _convergenceMin;
+		private readonly int _secondsPerBar;
 		private readonly PabPatternInfo _last = new PabPatternInfo();
 
-		public PabPatternDetector(double similarityPct = 0.0015, double convergenceMin = 0.15)
+		public PabPatternDetector(double similarityPct = 0.0015, double convergenceMin = 0.15, int secondsPerBar = 300)
 		{
 			_similarityPct = similarityPct; _convergenceMin = convergenceMin;
+			_secondsPerBar = secondsPerBar;
 		}
 
 		public void Reset() { _last.Type = PabPatternType.None; _last.Note = ""; }
@@ -593,8 +630,11 @@ namespace NinjaTrader.NinjaScript.Indicators
 				return true;
 			}
 
-			double highSlope = PabUtils.Slope(0, highs[1].Price, 1, highs[0].Price);
-			double lowSlope = PabUtils.Slope(0, lows[1].Price, 1, lows[0].Price);
+			// Slopes are a fraction of price per BAR, measured off the
+			// swing timestamps, so one convergenceMin is meaningful on
+			// any symbol and any timeframe (see PabUtils.NormalizedSlopePerBar).
+			double highSlope = PabUtils.NormalizedSlopePerBar(highs[1].Time, highs[1].Price, highs[0].Time, highs[0].Price, _secondsPerBar);
+			double lowSlope = PabUtils.NormalizedSlopePerBar(lows[1].Time, lows[1].Price, lows[0].Time, lows[0].Price, _secondsPerBar);
 			if (highSlope < -_convergenceMin && lowSlope > _convergenceMin)
 			{
 				_last.Type = PabPatternType.Triangle;
@@ -949,7 +989,7 @@ namespace NinjaTrader.NinjaScript.Indicators
 					BreakoutLookback, BreakoutClvMin, ClimaxLookback, ClimaxRangeMult, ClimaxBodyRatioMax);
 				_swings = new PabSwingDetector(FractalLegs);
 				_range = new PabTradingRangeDetector(RegimeLookback, OverlapThreshold, DisplaceThreshold);
-				_patterns = new PabPatternDetector(SwingSimilarityPct / 100.0, ConvergenceMin);
+				_patterns = new PabPatternDetector(SwingSimilarityPct / 100.0, ConvergenceMin, ChartSecondsPerBar());
 				_alwaysIn = new PabAlwaysInTracker();
 				_measuredMove = new PabMeasuredMoveDetector();
 				_series = new PabNinjaSeriesAdapter(this);
@@ -963,6 +1003,26 @@ namespace NinjaTrader.NinjaScript.Indicators
 					ShowClimax = ShowClimax,
 					ShowMeasuredMove = ShowMeasuredMove
 				};
+			}
+		}
+
+		// The pattern detector's convergence threshold is expressed as a
+		// fraction of price per bar, so it needs this chart's real bar
+		// spacing. Non-time-based periods (tick, volume, range, renko)
+		// have no time axis; 0 there disables slope-based detection
+		// rather than guessing a number.
+		private int ChartSecondsPerBar()
+		{
+			switch (BarsPeriod.BarsPeriodType)
+			{
+				case NinjaTrader.Data.BarsPeriodType.Second: return BarsPeriod.Value;
+				case NinjaTrader.Data.BarsPeriodType.Minute: return BarsPeriod.Value * 60;
+				case NinjaTrader.Data.BarsPeriodType.Hour:   return BarsPeriod.Value * 3600;
+				case NinjaTrader.Data.BarsPeriodType.Day:    return 86400;
+				case NinjaTrader.Data.BarsPeriodType.Week:   return 7 * 86400;
+				case NinjaTrader.Data.BarsPeriodType.Month:  return 30 * 86400;
+				case NinjaTrader.Data.BarsPeriodType.Year:   return 365 * 86400;
+				default:                                    return 0;
 			}
 		}
 
